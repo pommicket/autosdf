@@ -664,15 +664,25 @@ impl Window {
 		self.array_attribnf(array, 4, name, offset)
 	}
 
-	pub fn size(&mut self) -> (i32, i32) {
+	pub fn size(&self) -> (i32, i32) {
 		let mut x = 0;
 		let mut y = 0;
 		unsafe { sdl::get_window_size(self.sdlwin, &mut x, &mut y) };
 		(x, y)
 	}
+	
+	pub fn aspect_ratio(&self) -> f32 {
+		let (w, h) = self.size();
+		return w as f32 / h as f32;
+	}
 
 	pub fn viewport(&mut self, x: i32, y: i32, w: i32, h: i32) {
 		unsafe { gl::Viewport(x, y, w, h) };
+	}
+	
+	pub fn viewport_full_screen(&mut self) {
+		let (w, h) = self.size();
+		self.viewport(0, 0, w, h);
 	}
 
 	pub fn next_event(&mut self) -> Option<Event> {
@@ -831,11 +841,73 @@ impl Window {
 		}
 	}
 
-	pub fn uniform_texture(&mut self, name: &str, slot: u32) {
+	pub fn uniform1i(&mut self, name: &str, x: i32) {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
-			gl::Uniform1i(loc, slot as i32);
+			gl::Uniform1i(loc, x);
 		}
+	}
+
+	pub fn uniform2i(&mut self, name: &str, x: i32, y: i32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform2i(loc, x, y);
+		}
+	}
+	
+	pub fn uniform3i(&mut self, name: &str, x: i32, y: i32, z: i32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform3i(loc, x, y, z);
+		}
+	}
+
+	pub fn uniform4i(&mut self, name: &str, x: i32, y: i32, z: i32, w: i32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform4i(loc, x, y, z, w);
+		}
+	}
+
+	pub fn uniform1f(&mut self, name: &str, x: f32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform1f(loc, x);
+		}
+	}
+
+	pub fn uniform2f(&mut self, name: &str, x: f32, y: f32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform2f(loc, x, y);
+		}
+	}
+	
+	pub fn uniform3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform3f(loc, x, y, z);
+		}
+	}
+
+	pub fn uniform4f(&mut self, name: &str, x: f32, y: f32, z: f32, w: f32) {
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::Uniform4f(loc, x, y, z, w);
+		}
+	}
+
+	pub fn uniform3x3f(&mut self, name: &str, matrix: &[f32]) {
+		assert_eq!(matrix.len(), 9);
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::UniformMatrix3fv(loc, 1, 0, matrix.as_ptr());
+		}
+	}
+
+
+	pub fn uniform_texture(&mut self, name: &str, slot: u32) {
+		self.uniform1i(name, slot as i32);
 	}
 
 	pub fn draw_array(&mut self, array: &VertexArray) {
