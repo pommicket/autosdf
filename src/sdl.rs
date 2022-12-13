@@ -678,6 +678,7 @@ extern "C" {
 	fn SDL_GetWindowID(window: *mut SDL_Window) -> u32;
 	fn SDL_SetWindowResizable(window: *mut SDL_Window, resizable: SDL_bool);
 	fn SDL_SetWindowSize(window: *mut SDL_Window, w: c_int, h: c_int);
+	fn SDL_SetRelativeMouseMode(enabled: SDL_bool) -> c_int;
 	fn SDL_GetError() -> *const c_char;
 	fn SDL_SetHint(name: *const c_char, value: *const c_char) -> SDL_bool;
 	fn SDL_GL_SetAttribute(attr: SDL_GLattr, value: c_int);
@@ -1047,6 +1048,10 @@ pub unsafe fn gl_set_swap_interval(interval: i32) {
 
 pub unsafe fn show_window(window: *mut SDL_Window) {
 	SDL_ShowWindow(window);
+}
+
+pub unsafe fn set_relative_mouse_mode(relative: bool) {
+	SDL_SetRelativeMouseMode(relative.into());
 }
 
 pub unsafe fn gl_swap_window(window: *mut SDL_Window) {

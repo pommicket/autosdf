@@ -4,9 +4,12 @@ mod sdl;
 pub mod win;
 pub mod sdf;
 
-use nalgebra::{Vector3, Matrix3, Rotation3};
+use nalgebra::{Vector3, Matrix3, Rotation3, Matrix4};
+use std::time::Instant;
+	
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
+type Mat4 = Matrix4<f32>;
 type Rot3 = Rotation3<f32>;
 
 struct View {
@@ -26,9 +29,22 @@ impl Default for View {
 }
 
 impl View {
-	/// `camera_rotation() * vec3(0, 0, -1)` is the direction the camera is pointing
-	fn camera_rotation(&self) -> Mat3 {
+	/// `rotation() * vec3(0, 0, -1)` is the direction the camera is pointing
+	fn rotation(&self) -> Mat3 {
 		*Rot3::from_euler_angles(self.pitch, self.yaw, 0.0).matrix()
+	}
+	
+	fn translation(&self) -> Mat4 {
+		Mat4::new_translation(&self.pos)
+	}
+	
+	fn transform(&self) -> Mat4 {
+		self.translation() * self.rotation().to_homogeneous()
+	}
+	
+	fn inv_transform(&self) -> Mat4 {
+		// this matrix should always be invertible
+		self.transform().try_inverse().unwrap()
 	}
 }
 
@@ -42,14 +58,13 @@ fn try_main() -> Result<(), String> {
 	let mut fshader_source = String::new();
 	fshader_source.push_str("
 IN vec2 pos;
-uniform vec3 u_camera_position;
-uniform mat3 u_camera_rotation;
+uniform mat4 u_transform;
 ");
 	my_sdf.to_glsl(&mut fshader_source);
 	fshader_source.push_str("
-#define ITERATIONS 30
-#define AA_X 2
-#define AA_Y 2
+#define ITERATIONS 20
+#define AA_X 1
+#define AA_Y 1
 
 
 
@@ -81,35 +96,32 @@ vec3 normal(vec3 p)
                       k.yyx*sdf(p + k.yyx*h) + 
                       k.yxy*sdf(p + k.yxy*h) + 
                       k.xxx*sdf(p + k.xxx*h);
-    vec3 noise_normal = k.xyy*fbm(p + k.xyy*h) + 
-                        k.yyx*fbm(p + k.yyx*h) + 
-                        k.yxy*fbm(p + k.yxy*h) + 
-                        k.xxx*fbm(p + k.xxx*h);
-    return normalize(sdf_normal + 0.003 * noise_normal);
+    return normalize(sdf_normal);
 }
 
 void main() {
-	float focal_length = 0.3;
+	float focal_length = 1.0;
 	float min_dist = 10.;
 	vec2 inv_screen_size = 1.0 / vec2(1280.0, 720.0); // @TODO
 	vec2 aa_delta = inv_screen_size / vec2(AA_X, AA_Y);
 	vec3 final_color = vec3(0);
 	for (int m = 0; m < AA_X; m++) {
 	for (int n = 0; n < AA_Y; n++) {
-	vec3 p = u_camera_position;
 	vec2 aa_offset = vec2(float(m), float(n)) * aa_delta;
-	vec3 delta = normalize(u_camera_rotation * vec3(pos + aa_offset, -focal_length));
+	vec3 absolute_pos = vec3(pos + aa_offset, -focal_length);
+	vec3 delta = normalize(absolute_pos);
 	int i;
 	for (i = 0; i < ITERATIONS; i++) {
+		vec3 p = (u_transform * vec4(absolute_pos, 1.0)).xyz;
 		float dist = sdf(p);
 		min_dist = min(min_dist, dist);
 		if (dist <= 0.01) {
 			float L = 0.3 + max(0., dot(normal(p), normalize(vec3(.8,1,.6))));
 			final_color += L * vec3(1.0, 0.0, 0.0);
-			
 			break;
 		} 
-		p += dist * delta;
+		if (dist > 100.0) break;//little optimization
+		absolute_pos += dist * delta;
 	}
 	}
 	}
@@ -146,28 +158,40 @@ void main() {
 	
 	let mut view = View::default();
 	
+	window.set_mouse_relative(true);
+	
+	let mut frame_time = Instant::now();
+	let mut show_debug_info = false;
+	
 	'mainloop: loop {
 		while let Some(event) = window.next_event() {
 			use win::Event::*;
+			use win::Key::*;
 			match event {
-				Quit => break 'mainloop,
+				Quit | KeyDown(Escape) => break 'mainloop,
+				KeyDown(F1) => show_debug_info = !show_debug_info,
+				MouseMotion { xrel, yrel, .. } => {
+					view.yaw += xrel as f32 * 0.01;
+					view.pitch += yrel as f32 * 0.01;
+				},
 				_ => {},
 			}
 		}
 		
 		window.viewport_full_screen();
 		
-		view.yaw += 0.002;
-		
 		window.clear_screen(win::ColorF32::BLACK);
 		window.use_program(&program);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
-		window.uniform3f("u_camera_position", view.pos.x, view.pos.y, view.pos.z);
-		window.uniform3x3f("u_camera_rotation", view.camera_rotation().as_slice());
+		window.uniform4x4f("u_transform", view.inv_transform().as_slice());
 		
 		window.draw_array(&array);
 		
 		window.swap();
+		if show_debug_info {
+			println!("frame time = {:?}",frame_time.elapsed());
+			frame_time = Instant::now();
+		}
 	}
 	
 	Ok(())

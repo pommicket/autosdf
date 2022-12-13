@@ -69,7 +69,7 @@ impl Sdf {
 	pub fn to_glsl(&self, code: &mut String) {
 		code.push_str("float sdf(vec3 p) {\n");
 		// don't start out right next to the origin, since weird stuff might be happening there
-		let origin_dist: f32 = 2.0;
+		let origin_dist: f32 = 3.0;
 		write_str!(code, "vec3 v0 = p - vec3(0,0,-{}.);\n", origin_dist);
 		let mut var_idx = 0;
 		self.pre.to_glsl(code, &mut var_idx);

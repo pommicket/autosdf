@@ -68,6 +68,18 @@ pub enum Key {
 	Space,
 	Enter,
 	Escape,
+	F1,
+	F2,
+	F3,
+	F4,
+	F5,
+	F6,
+	F7,
+	F8,
+	F9,
+	F10,
+	F11,
+	F12
 }
 
 impl Key {
@@ -117,6 +129,18 @@ impl Key {
 			RIGHT => Key::Right,
 			DOWN => Key::Down,
 			ESCAPE => Key::Escape,
+			F1 => Key::F1,
+			F2 => Key::F2,
+			F3 => Key::F3,
+			F4 => Key::F4,
+			F5 => Key::F5,
+			F6 => Key::F6,
+			F7 => Key::F7,
+			F8 => Key::F8,
+			F9 => Key::F9,
+			F10 => Key::F10,
+			F11 => Key::F11,
+			F12 => Key::F12,
 			_ => return None,
 		})
 	}
@@ -167,6 +191,18 @@ impl Key {
 			Key::Right => RIGHT,
 			Key::Down => DOWN,
 			Key::Escape => ESCAPE,
+			Key::F1 => F1,
+			Key::F2 => F2,
+			Key::F3 => F3,
+			Key::F4 => F4,
+			Key::F5 => F5,
+			Key::F6 => F6,
+			Key::F7 => F7,
+			Key::F8 => F8,
+			Key::F9 => F9,
+			Key::F10 => F10,
+			Key::F11 => F11,
+			Key::F12 => F12,
 		}
 	}
 }
@@ -176,6 +212,7 @@ pub enum Event {
 	Quit,
 	KeyDown(Key),
 	KeyUp(Key),
+	MouseMotion { x: i32, y: i32, xrel: i32, yrel: i32 },
 }
 
 pub fn display_error_message(message: &str) {
@@ -625,6 +662,10 @@ impl Window {
 	pub fn show(&mut self) {
 		unsafe { sdl::show_window(self.sdlwin) };
 	}
+	
+	pub fn set_mouse_relative(&mut self, relative: bool) {
+		unsafe { sdl::set_relative_mouse_mode(relative); }
+	}
 
 	pub fn create_program(
 		&mut self,
@@ -700,7 +741,16 @@ impl Window {
 							return Some(Event::KeyUp(k));
 						}
 					}
-				}
+				},
+				sdl::SDL_MOUSEMOTION => {
+					let motion = unsafe { sdl.motion };
+					return Some(Event::MouseMotion {
+						x: motion.x,
+						y: motion.y,
+						xrel: motion.xrel,
+						yrel: motion.yrel
+					});
+				},
 				_ => {}
 			}
 		}
@@ -902,6 +952,14 @@ impl Window {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
 			gl::UniformMatrix3fv(loc, 1, 0, matrix.as_ptr());
+		}
+	}
+
+	pub fn uniform4x4f(&mut self, name: &str, matrix: &[f32]) {
+		assert_eq!(matrix.len(), 16);
+		let loc = self.get_uniform_location(name).unwrap_or(-1);
+		unsafe {
+			gl::UniformMatrix4fv(loc, 1, 0, matrix.as_ptr());
 		}
 	}
 
