@@ -61,10 +61,22 @@ pub enum Key {
 	N7,
 	N8,
 	N9,
+	NumPad0,
+	NumPad1,
+	NumPad2,
+	NumPad3,
+	NumPad4,
+	NumPad5,
+	NumPad6,
+	NumPad7,
+	NumPad8,
+	NumPad9,
 	Up,
 	Left,
 	Right,
 	Down,
+	PageUp,
+	PageDown,
 	Space,
 	Enter,
 	Escape,
@@ -129,6 +141,8 @@ impl Key {
 			RIGHT => Key::Right,
 			DOWN => Key::Down,
 			ESCAPE => Key::Escape,
+			PAGEUP => Key::PageUp,
+			PAGEDOWN => Key::PageDown,
 			F1 => Key::F1,
 			F2 => Key::F2,
 			F3 => Key::F3,
@@ -141,6 +155,16 @@ impl Key {
 			F10 => Key::F10,
 			F11 => Key::F11,
 			F12 => Key::F12,
+			KP_0 => Key::NumPad0,
+			KP_1 => Key::NumPad1,
+			KP_2 => Key::NumPad2,
+			KP_3 => Key::NumPad3,
+			KP_4 => Key::NumPad4,
+			KP_5 => Key::NumPad5,
+			KP_6 => Key::NumPad6,
+			KP_7 => Key::NumPad7,
+			KP_8 => Key::NumPad8,
+			KP_9 => Key::NumPad9,
 			_ => return None,
 		})
 	}
@@ -191,6 +215,8 @@ impl Key {
 			Key::Right => RIGHT,
 			Key::Down => DOWN,
 			Key::Escape => ESCAPE,
+			Key::PageUp => PAGEUP,
+			Key::PageDown => PAGEDOWN,
 			Key::F1 => F1,
 			Key::F2 => F2,
 			Key::F3 => F3,
@@ -203,6 +229,16 @@ impl Key {
 			Key::F10 => F10,
 			Key::F11 => F11,
 			Key::F12 => F12,
+			Key::NumPad0 => KP_0,
+			Key::NumPad1 => KP_1,
+			Key::NumPad2 => KP_2,
+			Key::NumPad3 => KP_3,
+			Key::NumPad4 => KP_4,
+			Key::NumPad5 => KP_5,
+			Key::NumPad6 => KP_6,
+			Key::NumPad7 => KP_7,
+			Key::NumPad8 => KP_8,
+			Key::NumPad9 => KP_9,
 		}
 	}
 }
@@ -962,6 +998,11 @@ impl Window {
 		}
 	}
 
+	pub fn uniform2f_slice(&mut self, name: &str, xy: &[f32]) {
+		assert_eq!(xy.len(), 2);
+		self.uniform2f(name, xy[0], xy[1])
+	}
+
 	pub fn uniform3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
@@ -969,11 +1010,21 @@ impl Window {
 		}
 	}
 
+	pub fn uniform3f_slice(&mut self, name: &str, xyz: &[f32]) {
+		assert_eq!(xyz.len(), 3);
+		self.uniform3f(name, xyz[0], xyz[1], xyz[2])
+	}
+
 	pub fn uniform4f(&mut self, name: &str, x: f32, y: f32, z: f32, w: f32) {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
 			gl::Uniform4f(loc, x, y, z, w);
 		}
+	}
+
+	pub fn uniform4f_slice(&mut self, name: &str, xyzw: &[f32]) {
+		assert_eq!(xyzw.len(), 4);
+		self.uniform4f(name, xyzw[0], xyzw[1], xyzw[2], xyzw[3])
 	}
 
 	pub fn uniform3x3f(&mut self, name: &str, matrix: &[f32]) {
@@ -1000,10 +1051,13 @@ impl Window {
 		array.draw();
 	}
 
-	#[allow(dead_code)]
 	pub fn is_key_down(&mut self, key: Key) -> bool {
 		let kbd_state = unsafe { sdl::get_keyboard_state() };
 		kbd_state[key.to_sdl() as usize] != 0
+	}
+
+	pub fn any_key_down(&mut self, keys: &[Key]) -> bool {
+		keys.iter().any(|&k| self.is_key_down(k))
 	}
 
 	pub fn swap(&mut self) {

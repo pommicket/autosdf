@@ -1001,6 +1001,7 @@ pub unsafe fn get_keyboard_state() -> &'static [u8] {
 
 pub unsafe fn poll_event() -> Option<SDL_Event> {
 	let mut event = mem::MaybeUninit::zeroed();
+
 	if SDL_PollEvent(event.as_mut_ptr()) != 0 {
 		let event = event.assume_init();
 		Some(event)

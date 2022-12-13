@@ -65,7 +65,7 @@ impl R3ToR {
 	pub fn sphere_f32(r: f32) -> Self {
 		Self::Sphere(r.into())
 	}
-	
+
 	pub fn cube_f32(r: f32) -> Self {
 		Self::Cube(r.into())
 	}
@@ -73,9 +73,13 @@ impl R3ToR {
 	pub fn mix(a: Self, b: Self, t: Constant) -> Self {
 		Self::Mix(Box::new(a), Box::new(b), t)
 	}
-	
+
 	pub fn mix_f32(a: Self, b: Self, t: f32) -> Self {
 		Self::mix(a, b, t.into())
+	}
+	
+	pub fn min(a: Self, b: Self) -> Self {
+		Self::Min(Box::new(a), Box::new(b))
 	}
 }
 
@@ -178,6 +182,15 @@ impl Function for R3ToR {
 					var.next()
 				);
 			}
+			Min(a, b) => {
+				let a_output = a.to_glsl(input, code, var);
+				let b_output = b.to_glsl(input, code, var);
+				write_str!(
+					code,
+					"float v{} = min(v{a_output}, v{b_output});\n",
+					var.next()
+				);
+			},
 			_ => todo!(),
 		}
 
@@ -197,18 +210,11 @@ impl Sdf {
 		Self { distance_function }
 	}
 
-	/// appends some glsl code including a function `float sdf(vec3 p) { ... }`
+	/// appends some glsl code including a function `float sdf(vec3) { ... }`
 	pub fn to_glsl(&self, code: &mut String) {
 		code.push_str("float sdf(vec3 p) {\n");
-		// don't start out right next to the origin, since weird stuff might be happening there
-		let origin_dist: f32 = 3.0;
 		let mut var = VarCounter::new();
-		write_str!(
-			code,
-			"vec3 v{} = p - vec3(0,0,-{}.);\n",
-			var.next(),
-			origin_dist
-		);
+		write_str!(code, "vec3 v{} = p;\n", var.next());
 		let output = self.distance_function.to_glsl(var.prev(), code, &mut var);
 		write_str!(code, "return v{output};\n");
 		code.push('}');

@@ -27,14 +27,19 @@ struct View {
 	pos: Vec3,
 	yaw: f32,
 	pitch: f32,
+	level_set: f32,
 }
 
 impl Default for View {
 	fn default() -> Self {
+		// don't start out right next to the origin, since weird stuff might be happening there
+		let pos = Vec3::new(0.0, 0.0, 4.0);
+
 		Self {
-			pos: Vec3::zeros(),
+			pos,
 			yaw: 0.0,
 			pitch: 0.0,
+			level_set: 0.0,
 		}
 	}
 }
@@ -49,16 +54,18 @@ impl View {
 		Mat4::new_translation(&self.pos)
 	}
 
+	#[allow(dead_code)]
 	fn transform(&self) -> Mat4 {
 		self.translation() * self.rotation().to_homogeneous()
 	}
-
 }
 
 fn try_main() -> Result<(), String> {
-	use sdf::{R3ToR, Constant};
-	let funciton = R3ToR::mix(R3ToR::sphere_f32(1.0), R3ToR::cube_f32(1.0),
-		Constant::Time(0.1, 0.0));
+	use sdf::{R3ToR};
+	let funciton = R3ToR::min(
+		R3ToR::sphere_f32(1.5),
+		R3ToR::cube_f32(1.0),
+	);
 	let my_sdf = sdf::Sdf::from_function(funciton);
 
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
@@ -68,8 +75,12 @@ fn try_main() -> Result<(), String> {
 	fshader_source.push_str(
 		"
 IN vec2 pos;
-uniform mat4 u_transform;
+uniform mat3 u_rotation;
+uniform vec3 u_translation;
 uniform float u_time;
+uniform float u_fov;
+uniform float u_focal_length;
+uniform float u_level_set;
 ",
 	);
 	my_sdf.to_glsl(&mut fshader_source);
@@ -79,27 +90,11 @@ uniform float u_time;
 #define AA_X 1
 #define AA_Y 1
 
-
-
-float fbm(vec3 p) {
-    float t = 0.0;
-    float freq = 24.0;
-    mat3 m = mat3(cos(1.),sin(1.),0,
-                 -sin(1.),cos(1.),0,
-                 0,            0, 1) * mat3(
-                  1,           0, 0,
-                  0,      cos(1.),sin(1.),
-                  0,     -sin(1.),cos(1.)
-    );
-    for(int i = 0; i < 5; i++)
-    {
-        p = m * p;
-        t += pow(0.6, float(i)) * sin(freq*p.x)*sin(freq*p.y)*sin(freq*p.z);
-        freq *= 2.0;
-    }
-    return t;
+float sdf_adjusted(vec3 p) {
+	return sdf(p) - u_level_set;
 }
-		
+#define sdf sdf_adjusted
+
 vec3 normal(vec3 p)
 {
 // thanks to https://iquilezles.org/articles/normalsSDF/
@@ -113,7 +108,6 @@ vec3 normal(vec3 p)
 }
 
 void main() {
-	float focal_length = 1.0;
 	float min_dist = 10.;
 	vec2 inv_screen_size = 1.0 / vec2(1280.0, 720.0); // @TODO
 	vec2 aa_delta = inv_screen_size / vec2(AA_X, AA_Y);
@@ -121,8 +115,10 @@ void main() {
 	for (int m = 0; m < AA_X; m++) {
 	for (int n = 0; n < AA_Y; n++) {
 	vec2 aa_offset = vec2(float(m), float(n)) * aa_delta;
-	vec3 p = (u_transform * vec4(pos + aa_offset, -focal_length, 1.0)).xyz;
+	vec3 pos3d = vec3((pos + aa_offset) * sin(u_fov * 0.5), -1.0) * u_focal_length;
+	vec3 p = u_rotation * pos3d;
 	vec3 delta = normalize(p);
+	p += u_translation;
 	if (sdf(p) < 0.0) {
 		// looking inside object
 		o_color = vec4(1.0, 0.0, 1.0, 1.0);
@@ -187,7 +183,7 @@ void main() {
 	'mainloop: loop {
 		let frame_dt = frame_time.elapsed().as_secs_f32();
 		frame_time = Instant::now();
-		
+
 		while let Some(event) = window.next_event() {
 			use win::Event::*;
 			use win::Key::*;
@@ -201,22 +197,26 @@ void main() {
 				_ => {}
 			}
 		}
-		
-		{ // movement
+
+		{
+			// movement
 			let mut dx = 0.0;
 			let mut dy = 0.0;
 			let mut dz = 0.0;
-			use win::Key::{Left, Right, Up, Down, W, A, S, D, Q, E};
-			if window.is_key_down(W) || window.is_key_down(Up) {
+			let mut dl = 0.0;
+			use win::Key::{
+				Down, Left, NumPad3, NumPad9, PageDown, PageUp, Right, Up, A, D, E, M, N, Q, S, W,
+			};
+			if window.any_key_down(&[W, Up]) {
 				dz -= 1.0;
 			}
-			if window.is_key_down(S) || window.is_key_down(Down) {
+			if window.any_key_down(&[S, Down]) {
 				dz += 1.0;
 			}
-			if window.is_key_down(A) || window.is_key_down(Left) {
+			if window.any_key_down(&[A, Left]) {
 				dx -= 1.0;
 			}
-			if window.is_key_down(D) || window.is_key_down(Right) {
+			if window.any_key_down(&[D, Right]) {
 				dx += 1.0;
 			}
 			if window.is_key_down(Q) {
@@ -225,21 +225,35 @@ void main() {
 			if window.is_key_down(E) {
 				dy -= 1.0;
 			}
+			if window.any_key_down(&[PageUp, NumPad9, M]) {
+				dl += 1.0;
+			}
+			if window.any_key_down(&[PageDown, NumPad3, N]) {
+				dl -= 1.0;
+			}
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
-				let motion = motion * frame_dt;
+				let move_speed = 2.0;
+				let motion = motion * frame_dt * move_speed;
 				let motion = view.rotation() * motion;
 				view.pos += motion;
 			}
+
+			let level_set_speed = 1.0;
+			view.level_set += dl * frame_dt * level_set_speed;
 		}
-		
+
 		window.viewport_full_screen();
 
 		window.clear_screen(win::ColorF32::BLACK);
 		window.use_program(&program);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
 		window.uniform1f("u_time", total_time);
-		window.uniform4x4f("u_transform", view.transform().as_slice());
+		window.uniform1f("u_fov", std::f32::consts::PI * 0.25);
+		window.uniform1f("u_focal_length", 1.0);
+		window.uniform1f("u_level_set", view.level_set);
+		window.uniform3x3f("u_rotation", view.rotation().as_slice());
+		window.uniform3f_slice("u_translation", view.pos.as_slice());
 
 		window.draw_array(&array);
 
@@ -247,7 +261,7 @@ void main() {
 		if show_debug_info {
 			println!("frame time = {:?}ms", frame_dt * 1000.0);
 		}
-		
+
 		total_time += frame_dt;
 	}
 
