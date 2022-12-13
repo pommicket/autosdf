@@ -2,11 +2,11 @@
 // this is because OpenGL is not thread safe.
 use crate::sdl;
 use gl::types::{GLchar, GLenum, GLint, GLsizei, GLuint};
+use mem::size_of;
 #[allow(unused_imports)]
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr, CString};
 use std::sync::Mutex;
 use std::{fmt, mem};
-use mem::size_of;
 
 pub type AudioCallback = fn(sample_rate: u32, samples: &mut [f32]);
 
@@ -79,7 +79,7 @@ pub enum Key {
 	F9,
 	F10,
 	F11,
-	F12
+	F12,
 }
 
 impl Key {
@@ -212,7 +212,12 @@ pub enum Event {
 	Quit,
 	KeyDown(Key),
 	KeyUp(Key),
-	MouseMotion { x: i32, y: i32, xrel: i32, yrel: i32 },
+	MouseMotion {
+		x: i32,
+		y: i32,
+		xrel: i32,
+		yrel: i32,
+	},
 }
 
 pub fn display_error_message(message: &str) {
@@ -308,11 +313,11 @@ impl From<u32> for ColorU8 {
 
 impl ColorF32 {
 	pub const BLACK: Self = Self::rgb(0.0, 0.0, 0.0);
-	
+
 	pub const fn rgb(r: f32, g: f32, b: f32) -> Self {
 		ColorF32 { r, g, b, a: 1.0 }
 	}
-	
+
 	pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
 		ColorF32 { r, g, b, a }
 	}
@@ -342,25 +347,27 @@ impl Shader {
 		{
 			//set source
 			// @TODO(eventually): support for older versions of GLSL
-			let header = if r#type == gl::FRAGMENT_SHADER { "#version 130
+			let header = if r#type == gl::FRAGMENT_SHADER {
+				"#version 130
 #define IN in
 #define OUT out
 #define gl_FragColor o_color
 out vec4 o_color;
 #line 1
-" } else {
-"#version 130
+"
+			} else {
+				"#version 130
 #define IN in
 #define OUT out
 #define ATTRIBUTE in
 #line 1
 "
-};
+			};
 			let hdrptr = header.as_bytes().as_ptr() as *const GLchar;
 			let srcptr = source.as_bytes().as_ptr() as *const GLchar;
 			let sources = [hdrptr, srcptr];
 			let lengths = [header.len() as GLint, source.len() as GLint];
-			
+
 			let sources_ptr = &sources[0] as *const *const GLchar;
 			let lengths_ptr = &lengths[0] as *const GLint;
 
@@ -427,7 +434,7 @@ impl Program {
 				eprintln!("{}", String::from_utf8_lossy(&log[..len as usize]));
 			}
 		}
-		
+
 		{
 			let mut status: GLint = 0;
 			unsafe { gl::GetProgramiv(id, gl::LINK_STATUS, (&mut status) as _) };
@@ -435,7 +442,7 @@ impl Program {
 				return Err(format!("failed to link"));
 			}
 		}
-		
+
 		Ok(Self { id })
 	}
 }
@@ -503,7 +510,11 @@ impl VertexArray {
 
 		unsafe { gl::GenVertexArrays(1, &mut id as *mut GLuint) };
 
-		Self { id, buffer, program: program.id }
+		Self {
+			id,
+			buffer,
+			program: program.id,
+		}
 	}
 
 	fn bind(&self) {
@@ -515,16 +526,23 @@ impl VertexArray {
 		let cstr = cstring.as_ptr() as *const GLchar;
 		let loc = unsafe { gl::GetAttribLocation(self.program, cstr) };
 		let Ok(loc) = loc.try_into() else { return false };
-		
+
 		if offset + usize::from(n) * size_of::<f32>() > self.buffer.stride as usize {
 			// offset too large
 			return false;
 		}
-		
+
 		self.bind();
 		self.buffer.bind();
 		unsafe {
-			gl::VertexAttribPointer(loc, n.into(), gl::FLOAT, 0, self.buffer.stride as _, offset as _)
+			gl::VertexAttribPointer(
+				loc,
+				n.into(),
+				gl::FLOAT,
+				0,
+				self.buffer.stride as _,
+				offset as _,
+			)
 		};
 		unsafe { gl::EnableVertexAttribArray(loc) };
 		true
@@ -662,9 +680,11 @@ impl Window {
 	pub fn show(&mut self) {
 		unsafe { sdl::show_window(self.sdlwin) };
 	}
-	
+
 	pub fn set_mouse_relative(&mut self, relative: bool) {
-		unsafe { sdl::set_relative_mouse_mode(relative); }
+		unsafe {
+			sdl::set_relative_mouse_mode(relative);
+		}
 	}
 
 	pub fn create_program(
@@ -689,18 +709,24 @@ impl Window {
 		VertexArray::new(buffer, program)
 	}
 
-	fn array_attribnf(&mut self, array: &mut VertexArray, n: u8, name: &str, offset: usize) -> bool {
+	fn array_attribnf(
+		&mut self,
+		array: &mut VertexArray,
+		n: u8,
+		name: &str,
+		offset: usize,
+	) -> bool {
 		array.attribnf(n, name, offset)
 	}
-	
+
 	pub fn array_attrib2f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
 		self.array_attribnf(array, 2, name, offset)
 	}
-	
+
 	pub fn array_attrib3f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
 		self.array_attribnf(array, 3, name, offset)
 	}
-	
+
 	pub fn array_attrib4f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
 		self.array_attribnf(array, 4, name, offset)
 	}
@@ -711,7 +737,7 @@ impl Window {
 		unsafe { sdl::get_window_size(self.sdlwin, &mut x, &mut y) };
 		(x, y)
 	}
-	
+
 	pub fn aspect_ratio(&self) -> f32 {
 		let (w, h) = self.size();
 		return w as f32 / h as f32;
@@ -720,7 +746,7 @@ impl Window {
 	pub fn viewport(&mut self, x: i32, y: i32, w: i32, h: i32) {
 		unsafe { gl::Viewport(x, y, w, h) };
 	}
-	
+
 	pub fn viewport_full_screen(&mut self) {
 		let (w, h) = self.size();
 		self.viewport(0, 0, w, h);
@@ -741,16 +767,16 @@ impl Window {
 							return Some(Event::KeyUp(k));
 						}
 					}
-				},
+				}
 				sdl::SDL_MOUSEMOTION => {
 					let motion = unsafe { sdl.motion };
 					return Some(Event::MouseMotion {
 						x: motion.x,
 						y: motion.y,
 						xrel: motion.xrel,
-						yrel: motion.yrel
+						yrel: motion.yrel,
 					});
-				},
+				}
 				_ => {}
 			}
 		}
@@ -768,7 +794,10 @@ impl Window {
 		unsafe {
 			gl::GenTextures(1, (&mut id) as *mut GLuint);
 		}
-		Texture { id, params: params.clone() }
+		Texture {
+			id,
+			params: params.clone(),
+		}
 	}
 
 	pub fn set_texture_data(
@@ -869,7 +898,7 @@ impl Window {
 			self.used_program = program.id;
 		}
 	}
-	
+
 	fn get_uniform_location(&self, name: &str) -> Option<GLint> {
 		if self.used_program == 0 {
 			return None;
@@ -904,7 +933,7 @@ impl Window {
 			gl::Uniform2i(loc, x, y);
 		}
 	}
-	
+
 	pub fn uniform3i(&mut self, name: &str, x: i32, y: i32, z: i32) {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
@@ -932,7 +961,7 @@ impl Window {
 			gl::Uniform2f(loc, x, y);
 		}
 	}
-	
+
 	pub fn uniform3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
 		let loc = self.get_uniform_location(name).unwrap_or(-1);
 		unsafe {
@@ -962,7 +991,6 @@ impl Window {
 			gl::UniformMatrix4fv(loc, 1, 0, matrix.as_ptr());
 		}
 	}
-
 
 	pub fn uniform_texture(&mut self, name: &str, slot: u32) {
 		self.uniform1i(name, slot as i32);
