@@ -1,3 +1,12 @@
+/*
+@TODO:
+- fullscreen key
+- options for:
+    - max framerate
+    - AA quality
+    - # iterations, distance cutoff
+*/
+
 extern crate nalgebra;
 
 mod sdl;
