@@ -61,10 +61,19 @@ impl View {
 }
 
 fn try_main() -> Result<(), String> {
-	use sdf::{R3ToR};
-	let funciton = R3ToR::smooth_min(
-		R3ToR::sphere_f32(1.2),
-		R3ToR::cube_f32(1.0)
+	use sdf::{R3ToR, RToR, R3ToR3, Constant};
+	let funciton = R3ToR::compose(
+		R3ToR3::Sin(Constant::from(0.5))
+			.compose(R3ToR3::Translate((
+				Constant::Time(0.1, 0.0),
+				Constant::F32(0.5),
+				Constant::F32(0.7)
+			).into())),
+		R3ToR::smooth_min(
+			R3ToR::sphere_f32(1.2),
+			R3ToR::cube_f32(1.0)
+		),
+		RToR::Identity
 	);
 	let my_sdf = sdf::Sdf::from_function(funciton);
 
@@ -86,7 +95,7 @@ uniform float u_level_set;
 	my_sdf.to_glsl(&mut fshader_source);
 	fshader_source.push_str(
 		"
-#define ITERATIONS 20
+#define ITERATIONS 30
 #define AA_X 1
 #define AA_Y 1
 
@@ -136,7 +145,9 @@ void main() {
 	float threshold = 0.02;
 	if (min_dist < threshold) {
 		float L = 0.3 + max(0., dot(normal(p), normalize(vec3(.8,1,.6))));
-		final_color += L * (1.0/threshold) * (threshold-min_dist) * vec3(1.0, 0.0, 0.0);
+		float brightness = (1.0/threshold) * (threshold-min_dist);
+		brightness = pow(brightness, 8.0);
+		final_color += L * brightness * vec3(1.0, 0.0, 0.0);
 		break;
 	}
 	
@@ -235,15 +246,21 @@ void main() {
 			if window.any_key_down(&[PageDown, NumPad3, N]) {
 				dl -= 1.0;
 			}
+			let speed_multiplier = if window.is_shift_down() {
+				10.0
+			} else {
+				1.0
+			};
+			
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
-				let move_speed = 2.0;
+				let move_speed = 4.0 * speed_multiplier;
 				let motion = motion * frame_dt * move_speed;
 				let motion = view.rotation() * motion;
 				view.pos += motion;
 			}
 
-			let level_set_speed = 1.0;
+			let level_set_speed = 1.0 * speed_multiplier;
 			view.level_set += dl * frame_dt * level_set_speed;
 		}
 

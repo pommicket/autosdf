@@ -8,6 +8,7 @@ use std::ffi::{c_char, c_int, c_uint, c_void, CStr, CString};
 use std::sync::Mutex;
 use std::{fmt, mem};
 
+
 pub type AudioCallback = fn(sample_rate: u32, samples: &mut [f32]);
 
 struct AudioData {
@@ -23,7 +24,7 @@ pub struct Window {
 	audio_data: Option<Box<AudioData>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
 	A,
 	B,
@@ -80,6 +81,12 @@ pub enum Key {
 	Space,
 	Enter,
 	Escape,
+	LShift,
+	RShift,
+	LCtrl,
+	RCtrl,
+	LAlt,
+	RAlt,
 	F1,
 	F2,
 	F3,
@@ -165,6 +172,12 @@ impl Key {
 			KP_7 => Key::NumPad7,
 			KP_8 => Key::NumPad8,
 			KP_9 => Key::NumPad9,
+			LSHIFT => Key::LShift,
+			RSHIFT => Key::RShift,
+			LCTRL => Key::LCtrl,
+			RCTRL => Key::RCtrl,
+			LALT => Key::LAlt,
+			RALT => Key::RAlt,
 			_ => return None,
 		})
 	}
@@ -239,6 +252,12 @@ impl Key {
 			Key::NumPad7 => KP_7,
 			Key::NumPad8 => KP_8,
 			Key::NumPad9 => KP_9,
+			Key::LShift => LSHIFT,
+			Key::RShift => RSHIFT,
+			Key::LCtrl => LCTRL,
+			Key::RCtrl => RCTRL,
+			Key::LAlt => LALT,
+			Key::RAlt => RALT,
 		}
 	}
 }
@@ -1058,6 +1077,18 @@ impl Window {
 
 	pub fn any_key_down(&mut self, keys: &[Key]) -> bool {
 		keys.iter().any(|&k| self.is_key_down(k))
+	}
+	
+	pub fn is_shift_down(&mut self) -> bool {
+		self.is_key_down(Key::LShift) || self.is_key_down(Key::RShift)
+	}
+	
+	pub fn is_ctrl_down(&mut self) -> bool {
+		self.is_key_down(Key::LCtrl) || self.is_key_down(Key::RCtrl)
+	}
+	
+	pub fn is_alt_down(&mut self) -> bool {
+		self.is_key_down(Key::LAlt) || self.is_key_down(Key::RAlt)
 	}
 
 	pub fn swap(&mut self) {
