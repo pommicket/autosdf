@@ -1,7 +1,6 @@
 /*
 @TODO:
 - use 0..(sum of probs) for variant
-- scale and bias
 - fullscreen key
 - mathematical analysis
 - options for:
@@ -10,19 +9,19 @@
 	- AA quality
 	- # iterations, distance cutoff
 - documentation
+- GenRandom integers (+ gen_random_scale_bias)
 */
 
-extern crate nalgebra;
 extern crate gen_random;
+extern crate nalgebra;
 
 pub mod sdf;
 mod sdl;
 pub mod win;
 
+use gen_random::GenRandom;
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use std::time::Instant;
-use gen_random::GenRandom;
-
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -70,7 +69,7 @@ fn try_main() -> Result<(), String> {
 	use sdf::{Constant, R3ToR, R3ToR3, RToR};
 	let _test = Constant::gen_thread_random();
 	println!("{_test:?}");
-	
+
 	let funciton = R3ToR::compose(
 		R3ToR3::InfiniteMirrors(Constant::from(2.0)),
 		R3ToR::sphere_f32(0.2),

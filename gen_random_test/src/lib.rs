@@ -33,6 +33,16 @@ mod tests {
 		#[prob = 0.9]
 		Cons(f32, Box<LinkedList>)
 	}
+	
+	#[derive(GenRandom, Debug)]
+	struct ScaleBias {
+		#[bias = 1.0]
+		#[scale = 10.0]
+		a: f32,
+		#[bias = 2.0]
+		#[scale = 0.0]
+		b: f32,
+	}
 
 	#[test]
 	fn basic() {
@@ -50,5 +60,19 @@ mod tests {
 	fn linked_list() {
 		let ll = LinkedList::gen_thread_random();
 		println!("{ll:?}");
+	}
+	
+	#[test]
+	fn scale_bias() {
+		let sb: Vec<ScaleBias> = gen_thread_random_vec(10);
+		println!("{sb:?}");
+		for x in sb.iter() {
+			if x.a < 1.0 || x.a > 11.0 {
+				panic!("a field should be between 1 and 11; got {}", x.a);
+			}
+			if x.b != 2.0 {
+				panic!("b field should be exactly 2; got {}", x.b);
+			}
+		}
 	}
 }

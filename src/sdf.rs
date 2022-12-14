@@ -1,10 +1,10 @@
 #![allow(dead_code)] // @TODO @TEMPORARY
-extern crate rand;
 extern crate gen_random_proc_macro;
+extern crate rand;
 
-use std::fmt::{self, Display, Formatter, Write};
-use gen_random_proc_macro::GenRandom;
 use gen_random::GenRandom;
+use gen_random_proc_macro::GenRandom;
+use std::fmt::{self, Display, Formatter, Write};
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
