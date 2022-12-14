@@ -1,12 +1,11 @@
 #![allow(dead_code)] // @TODO @TEMPORARY
 
-use std::fmt::{self, Write, Display, Formatter};
+use std::fmt::{self, Display, Formatter, Write};
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
 	($( $arg:tt )*) => { write!($($arg)*).unwrap() }
 }
-
 
 /// these are constant across 3D space, not across time/user input/etc.
 pub enum Constant {
@@ -21,12 +20,12 @@ impl From<f32> for Constant {
 	}
 }
 
-impl Constant {
-	fn to_glsl(&self) -> String {
+impl Display for Constant {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		use Constant::*;
 		match self {
-			F32(x) => format!("{x:.1}"),
-			Time(x, y) => format!("({x:.1} * u_time + {y:.1})"),
+			F32(x) => write!(f, "{x:.1}"),
+			Time(x, y) => write!(f, "({x:.1} * u_time + {y:.1})"),
 		}
 	}
 }
@@ -39,14 +38,10 @@ impl From<(Constant, Constant, Constant)> for Constant3 {
 	}
 }
 
-impl Constant3 {
-	fn to_glsl(&self) -> String {
-		format!(
-			"vec3({}, {}, {})",
-			self.0.to_glsl(),
-			self.1.to_glsl(),
-			self.2.to_glsl()
-		)
+impl Display for Constant3 {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		let Self(x, y, z) = self;
+		write!(f, "vec3({x}, {y}, {z})")
 	}
 }
 
@@ -55,7 +50,7 @@ pub enum R3ToR3 {
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	Translate(Constant3),
 	Sin(Constant),
-	//@TODO InfiniteMirrors(f32)
+	InfiniteMirrors(Constant),
 }
 
 pub enum RToR {
@@ -101,15 +96,15 @@ impl R3ToR {
 	pub fn mix_f32(a: Self, b: Self, t: f32) -> Self {
 		Self::mix(a, b, t.into())
 	}
-	
+
 	pub fn min(a: Self, b: Self) -> Self {
 		Self::Min(Box::new(a), Box::new(b))
 	}
-	
+
 	pub fn smooth_min(a: Self, b: Self) -> Self {
 		Self::SmoothMin(Box::new(a), Box::new(b))
 	}
-	
+
 	pub fn compose(pre: R3ToR3, f: Self, post: RToR) -> Self {
 		Self::Compose(Box::new(pre), Box::new(f), Box::new(post))
 	}
@@ -117,11 +112,11 @@ impl R3ToR {
 
 #[derive(Clone, Copy)]
 struct Variable {
-	id: u32
+	id: u32,
 }
 
 impl Display for Variable {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		write!(f, "v{}", self.id)
 	}
 }
@@ -141,7 +136,7 @@ impl VarCounter {
 	}
 
 	fn next(&mut self) -> Variable {
-		let ret = Variable { id: self.idx};
+		let ret = Variable { id: self.idx };
 		self.idx += 1;
 		ret
 	}
@@ -166,18 +161,13 @@ impl Function for RToR {
 			Identity => input,
 			Add(x) => {
 				let output = var.next();
-				write_str!(
-					code,
-					"float {output} = {input} + {};\n",
-					x.to_glsl()
-				);
+				write_str!(code, "float {output} = {input} + {x};\n");
 				output
 			}
 			Compose(a, b) => {
 				let a_output = a.to_glsl(input, code, var);
-				let b_output = b.to_glsl(a_output, code, var);
-				b_output
-			},
+				b.to_glsl(a_output, code, var)
+			}
 		}
 	}
 }
@@ -190,29 +180,33 @@ impl Function for R3ToR3 {
 			Identity => input,
 			Translate(by) => {
 				let output = var.next();
-				write_str!(
-					code,
-					"vec3 {output} = {input} + {};\n",
-					by.to_glsl()
-				);
+				write_str!(code, "vec3 {output} = {input} + {by};\n");
 				output
 			}
 			Sin(c) => {
 				// we shouldn't just do sin(c x), since that
 				// would multiply the derivative by c (which breaks the SDF if c > 1)
 				// so we'll do sin(c x) / c instead.
-				let c = c.to_glsl();
 				let output = var.next();
+				write_str!(code, "vec3 {output} = sin({c} * {input}) * (1.0 / {c});\n");
+				output
+			}
+			InfiniteMirrors(c) => {
+				// similar to Sin(c), but uses mod instead
+				let q = var.next();
+				let r = var.next();
+				let output = var.next();
+				write_str!(code, "vec3 {q} = mod(floor({input} * {c}), 2.0);\n");
+				write_str!(code, "vec3 {r} = mod({input} * {c}, 1.0);\n");
 				write_str!(
 					code,
-					"vec3 {output} = sin({c} * {input}) * (1.0 / {c});\n"
+					"vec3 {output} = (1.0 / {c}) * ({q} + {r} * (1.0 - 2 * {q}));\n"
 				);
 				output
-			},
+			}
 			Compose(a, b) => {
 				let a_output = a.to_glsl(input, code, var);
-				let b_output = b.to_glsl(a_output, code, var);
-				b_output
+				b.to_glsl(a_output, code, var)
 			}
 		}
 	}
@@ -225,13 +219,11 @@ impl Function for R3ToR {
 			// thanks to https://iquilezles.org/articles/distfunctions/ for
 			// these SDFs.
 			Sphere(r) => {
-				let r = r.to_glsl();
 				let output = var.next();
 				write_str!(code, "float {output} = length({input}) - {r};\n");
 				output
 			}
 			Cube(r) => {
-				let r = r.to_glsl();
 				let q = var.next();
 				write_str!(code, "vec3 {q} = abs({input}) - {r};\n");
 				let output = var.next();
@@ -242,7 +234,6 @@ impl Function for R3ToR {
 				output
 			}
 			Mix(a, b, t) => {
-				let t = t.to_glsl();
 				let a_output = a.to_glsl(input, code, var);
 				let b_output = b.to_glsl(input, code, var);
 				let output = var.next();
@@ -256,12 +247,9 @@ impl Function for R3ToR {
 				let a_output = a.to_glsl(input, code, var);
 				let b_output = b.to_glsl(input, code, var);
 				let output = var.next();
-				write_str!(
-					code,
-					"float {output} = min({a_output}, {b_output});\n"
-				);
+				write_str!(code, "float {output} = min({a_output}, {b_output});\n");
 				output
-			},
+			}
 			SmoothMin(a, b) => {
 				let a_output = a.to_glsl(input, code, var);
 				let b_output = b.to_glsl(input, code, var);
@@ -275,13 +263,12 @@ impl Function for R3ToR {
 					"float {output} = sdf_smooth_min({a_output}, {b_output}, {k});\n"
 				);
 				output
-			},
+			}
 			Compose(pre, f, post) => {
 				let pre_output = pre.to_glsl(input, code, var);
 				let f_output = f.to_glsl(pre_output, code, var);
-				let post_output = post.to_glsl(f_output, code, var);
-				post_output
-			},
+				post.to_glsl(f_output, code, var)
+			}
 		}
 	}
 }
@@ -300,13 +287,15 @@ impl Sdf {
 
 	/// appends some glsl code including a function `float sdf(vec3) { ... }`
 	pub fn to_glsl(&self, code: &mut String) {
-		code.push_str("
+		code.push_str(
+			"
 float sdf_smooth_min(float a, float b, float k) {
 	k = clamp(k, 0.0, 1.0);
 	float h = max(k-abs(a-b), 0.0)/k;
 	return min(a, b) - h*h*h*k*(1.0/6.0);
 }
-");
+",
+		);
 		code.push_str("float sdf(vec3 p) {\n");
 		let mut var = VarCounter::new();
 		write_str!(code, "vec3 {} = p;\n", var.next());

@@ -8,7 +8,6 @@ use std::ffi::{c_char, c_int, c_uint, c_void, CStr, CString};
 use std::sync::Mutex;
 use std::{fmt, mem};
 
-
 pub type AudioCallback = fn(sample_rate: u32, samples: &mut [f32]);
 
 struct AudioData {
@@ -445,7 +444,7 @@ out vec4 o_color;
 			let mut status: GLint = 0;
 			unsafe { gl::GetShaderiv(id, gl::COMPILE_STATUS, (&mut status) as _) };
 			if status == 0 {
-				return Err(format!("failed to compile"));
+				return Err("failed to compile".to_string());
 			}
 		}
 
@@ -494,7 +493,7 @@ impl Program {
 			let mut status: GLint = 0;
 			unsafe { gl::GetProgramiv(id, gl::LINK_STATUS, (&mut status) as _) };
 			if status == 0 {
-				return Err(format!("failed to link"));
+				return Err("failed to link".to_string());
 			}
 		}
 
@@ -795,7 +794,7 @@ impl Window {
 
 	pub fn aspect_ratio(&self) -> f32 {
 		let (w, h) = self.size();
-		return w as f32 / h as f32;
+		w as f32 / h as f32
 	}
 
 	pub fn viewport(&mut self, x: i32, y: i32, w: i32, h: i32) {
@@ -1078,15 +1077,15 @@ impl Window {
 	pub fn any_key_down(&mut self, keys: &[Key]) -> bool {
 		keys.iter().any(|&k| self.is_key_down(k))
 	}
-	
+
 	pub fn is_shift_down(&mut self) -> bool {
 		self.is_key_down(Key::LShift) || self.is_key_down(Key::RShift)
 	}
-	
+
 	pub fn is_ctrl_down(&mut self) -> bool {
 		self.is_key_down(Key::LCtrl) || self.is_key_down(Key::RCtrl)
 	}
-	
+
 	pub fn is_alt_down(&mut self) -> bool {
 		self.is_key_down(Key::LAlt) || self.is_key_down(Key::RAlt)
 	}

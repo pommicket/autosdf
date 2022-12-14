@@ -1,7 +1,7 @@
 /*
 @TODO:
-- fix rotation
 - fullscreen key
+- mathematical analysis
 - options for:
 	- max framerate
 	- mouse sensitivity
@@ -61,19 +61,11 @@ impl View {
 }
 
 fn try_main() -> Result<(), String> {
-	use sdf::{R3ToR, RToR, R3ToR3, Constant};
+	use sdf::{Constant, R3ToR, R3ToR3, RToR};
 	let funciton = R3ToR::compose(
-		R3ToR3::Sin(Constant::from(0.5))
-			.compose(R3ToR3::Translate((
-				Constant::Time(0.1, 0.0),
-				Constant::F32(0.5),
-				Constant::F32(0.7)
-			).into())),
-		R3ToR::smooth_min(
-			R3ToR::sphere_f32(1.2),
-			R3ToR::cube_f32(1.0)
-		),
-		RToR::Identity
+		R3ToR3::InfiniteMirrors(Constant::from(2.0)),
+		R3ToR::sphere_f32(0.2),
+		RToR::Identity,
 	);
 	let my_sdf = sdf::Sdf::from_function(funciton);
 
@@ -246,12 +238,8 @@ void main() {
 			if window.any_key_down(&[PageDown, NumPad3, N]) {
 				dl -= 1.0;
 			}
-			let speed_multiplier = if window.is_shift_down() {
-				10.0
-			} else {
-				1.0
-			};
-			
+			let speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
+
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
 				let move_speed = 4.0 * speed_multiplier;
