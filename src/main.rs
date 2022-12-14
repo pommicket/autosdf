@@ -1,6 +1,5 @@
 /*
 @TODO:
-- use 0..(sum of probs) for variant
 - fullscreen key
 - mathematical analysis
 - options for:

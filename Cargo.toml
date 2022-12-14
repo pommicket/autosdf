@@ -11,4 +11,3 @@ nalgebra = "0.31"
 rand = "0.8"
 gen_random_proc_macro = { path = "./gen_random_proc_macro" }
 gen_random = { path = "./gen_random" }
-gen_random_test = { path = "./gen_random_test" }

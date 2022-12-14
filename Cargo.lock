@@ -23,7 +23,6 @@ version = "0.1.0"
 dependencies = [
  "gen_random",
  "gen_random_proc_macro",
- "gen_random_test",
  "gl",
  "nalgebra",
  "rand",
@@ -55,15 +54,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "gen_random_test"
-version = "0.1.0"
-dependencies = [
- "gen_random",
- "gen_random_proc_macro",
- "rand",
 ]
 
 [[package]]

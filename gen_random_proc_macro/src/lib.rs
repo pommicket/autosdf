@@ -9,6 +9,7 @@ use std::str::FromStr;
 use std::any::type_name;
 use quote::quote;
 
+/// See `gen_random::GenRandom`.
 #[proc_macro_derive(GenRandom, attributes(prob, scale, bias))]
 pub fn gen_random_derive(input: TokenStream) -> TokenStream {
 	// Construct a representation of Rust code as a syntax tree
@@ -60,7 +61,7 @@ fn generate_fields(fields: &syn::Fields) -> impl quote::ToTokens {
 			field_values.extend(quote! {#name: });
 		}
 		let ty = &field.ty;
-		field_values.extend(quote! { <#ty as GenRandom>::gen_random(rng) });
+		field_values.extend(quote! { <#ty as GenRandom>::gen_random_max_depth(rng, _depth - 1) });
 		
 		if let Some(scale) = get_attribute_literal(&field.attrs, "scale") {
 			field_values.extend(quote! { * #scale });
@@ -129,7 +130,7 @@ fn impl_gen_random(ast: &syn::DeriveInput) -> TokenStream {
 			}
 			
 			// ideally we would just do
-			//     let mut variant: f64 = rng.gen_range(0.0..1.0);
+			//     let mut variant: f64 = rng.gen_range(0.0..prob_sum);
 			//     variant -= variant1_probability;
 			//     if variant < 0.0 { bla bla bla }
 			//     variant -= variant2_probability;
@@ -160,7 +161,8 @@ fn impl_gen_random(ast: &syn::DeriveInput) -> TokenStream {
 				
 				function_body.extend(quote! {
 					variant -= #probability;
-					if variant < 0.0 { return Self::#name #field_values; }
+					// note: if _depth <= 0, we will always return the first variant.
+					if _depth <= 0 || variant < 0.0 { return Self::#name #field_values; }
 				});
 				test_variant -= probability;
 				
@@ -187,7 +189,7 @@ fn impl_gen_random(ast: &syn::DeriveInput) -> TokenStream {
 	
 	let gen = quote! {
 		impl GenRandom for #name {
-			fn gen_random(rng: &mut impl rand::Rng) -> Self {
+			fn gen_random_max_depth(rng: &mut impl rand::Rng, _depth: isize) -> Self {
 				#function_body
 			}
 		}
