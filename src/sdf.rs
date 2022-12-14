@@ -81,6 +81,10 @@ impl R3ToR {
 	pub fn min(a: Self, b: Self) -> Self {
 		Self::Min(Box::new(a), Box::new(b))
 	}
+	
+	pub fn smooth_min(a: Self, b: Self) -> Self {
+		Self::SmoothMin(Box::new(a), Box::new(b))
+	}
 }
 
 struct VarCounter {
@@ -191,6 +195,19 @@ impl Function for R3ToR {
 					var.next()
 				);
 			},
+			SmoothMin(a, b) => {
+				let a_output = a.to_glsl(input, code, var);
+				let b_output = b.to_glsl(input, code, var);
+				// for now we're using a fixed k value
+				// i don't want to make this a Constant right now,
+				// since most values of k (i.e. <0, >1) look bad/just like min.
+				let k = 0.2;
+				write_str!(
+					code,
+					"float v{} = smooth_min(v{a_output}, v{b_output}, {k});\n",
+					var.next()
+				);
+			},
 			_ => todo!(),
 		}
 
@@ -212,6 +229,13 @@ impl Sdf {
 
 	/// appends some glsl code including a function `float sdf(vec3) { ... }`
 	pub fn to_glsl(&self, code: &mut String) {
+		code.push_str("
+float smooth_min(float a, float b, float k) {
+	k = clamp(k, 0.0, 1.0);
+	float h = max(k-abs(a-b), 0.0)/k;
+	return min(a, b) - h*h*h*k*(1.0/6.0);
+}
+");
 		code.push_str("float sdf(vec3 p) {\n");
 		let mut var = VarCounter::new();
 		write_str!(code, "vec3 v{} = p;\n", var.next());

@@ -62,9 +62,9 @@ impl View {
 
 fn try_main() -> Result<(), String> {
 	use sdf::{R3ToR};
-	let funciton = R3ToR::min(
-		R3ToR::sphere_f32(1.5),
-		R3ToR::cube_f32(1.0),
+	let funciton = R3ToR::smooth_min(
+		R3ToR::sphere_f32(1.2),
+		R3ToR::cube_f32(1.0)
 	);
 	let my_sdf = sdf::Sdf::from_function(funciton);
 
@@ -89,6 +89,7 @@ uniform float u_level_set;
 #define ITERATIONS 20
 #define AA_X 1
 #define AA_Y 1
+
 
 float sdf_adjusted(vec3 p) {
 	return sdf(p) - u_level_set;
@@ -128,14 +129,17 @@ void main() {
 	for (i = 0; i < ITERATIONS; i++) {
 		float dist = sdf(p);
 		min_dist = min(min_dist, dist);
-		if (dist <= 0.01) {
-			float L = 0.3 + max(0., dot(normal(p), normalize(vec3(.8,1,.6))));
-			final_color += L * vec3(1.0, 0.0, 0.0);
-			break;
-		} 
 		if (dist > 100.0) break;//little optimization
 		p += dist * delta;
 	}
+
+	float threshold = 0.02;
+	if (min_dist < threshold) {
+		float L = 0.3 + max(0., dot(normal(p), normalize(vec3(.8,1,.6))));
+		final_color += L * (1.0/threshold) * (threshold-min_dist) * vec3(1.0, 0.0, 0.0);
+		break;
+	}
+	
 	}
 	}
 	final_color *= 1.0 / (AA_X * AA_Y);
