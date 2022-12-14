@@ -16,7 +16,7 @@ macro_rules! write_str {
 pub enum Constant {
 	#[prob = 0.5]
 	F32(f32),
-	#[prob = 0.5]
+	#[prob = 0]
 	Time(f32, f32),
 }
 
@@ -36,6 +36,7 @@ impl Display for Constant {
 	}
 }
 
+#[derive(GenRandom, Debug)]
 pub struct Constant3(Constant, Constant, Constant);
 
 impl From<(Constant, Constant, Constant)> for Constant3 {
@@ -51,26 +52,43 @@ impl Display for Constant3 {
 	}
 }
 
+#[derive(GenRandom, Debug)]
 pub enum R3ToR3 {
+	#[prob = 0]
 	Identity,
+	#[prob = 6]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
+	#[prob = 1]
 	Translate(Constant3),
+	#[prob = 2]
 	Sin(Constant),
+	#[prob = 2]
 	InfiniteMirrors(Constant),
 }
 
+#[derive(GenRandom, Debug)]
 pub enum RToR {
+	#[prob = 0]
 	Identity,
+	#[prob = 2]
 	Compose(Box<RToR>, Box<RToR>),
+	#[prob = 2]
 	Add(Constant),
 }
 
+#[derive(GenRandom, Debug)]
 pub enum R3ToR {
+	#[prob = 1]
 	Sphere(Constant),
+	#[prob = 1]
 	Cube(Constant),
+	#[prob = 8]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
+	#[prob = 4]
 	Mix(Box<R3ToR>, Box<R3ToR>, Constant),
+	#[prob = 2]
 	SmoothMin(Box<R3ToR>, Box<R3ToR>),
+	#[prob = 2]
 	Min(Box<R3ToR>, Box<R3ToR>),
 }
 
@@ -148,6 +166,7 @@ impl VarCounter {
 	}
 }
 
+#[derive(Debug)]
 pub struct Sdf {
 	distance_function: R3ToR,
 }
@@ -279,6 +298,29 @@ impl Function for R3ToR {
 	}
 }
 
+impl GenRandom for Sdf {
+	fn gen_random_max_depth(rng: &mut impl rand::Rng, max_depth: isize) -> Self {
+		// to make sure the SDF isn't too boring or too slow,
+		// we'll generate a bunch then take the one with the median code length.
+		let mut distance_functions = vec![];
+		for _i in 0..20 {
+			let f = R3ToR::gen_random_max_depth(rng, max_depth);
+			let mut code = String::new();
+			let mut var = VarCounter::new();
+			let _ = f.to_glsl(var.next(), &mut code, &mut var);
+			let len = code.len();
+			
+			distance_functions.push((len, f));
+		}
+		distance_functions.sort_by_key(|x| x.0);
+		let distance_function = distance_functions.remove(distance_functions.len() / 2).1;
+		
+		Sdf {
+			distance_function
+		}
+	}
+}
+
 impl Sdf {
 	/// test sphere
 	pub fn sphere(r: f32) -> Self {
@@ -286,7 +328,7 @@ impl Sdf {
 			distance_function: R3ToR::Sphere(Constant::F32(r)),
 		}
 	}
-
+	
 	pub fn from_function(distance_function: R3ToR) -> Self {
 		Self { distance_function }
 	}
