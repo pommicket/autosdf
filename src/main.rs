@@ -1,5 +1,7 @@
 /*
 @TODO:
+- use 0..(sum of probs) for variant
+- scale and bias
 - fullscreen key
 - mathematical analysis
 - options for:
