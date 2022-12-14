@@ -6,5 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gl = "0.14.0"
-nalgebra = "0.31.4"
+gl = "0.14"
+nalgebra = "0.31"
+rand = "0.8"
+gen_random_proc_macro = { path = "./gen_random_proc_macro" }
+gen_random = { path = "./gen_random" }
+gen_random_test = { path = "./gen_random_test" }

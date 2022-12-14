@@ -7,9 +7,11 @@
 	- mouse sensitivity
 	- AA quality
 	- # iterations, distance cutoff
+- documentation
 */
 
 extern crate nalgebra;
+extern crate gen_random;
 
 pub mod sdf;
 mod sdl;
@@ -17,6 +19,8 @@ pub mod win;
 
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use std::time::Instant;
+use gen_random::GenRandom;
+
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -62,6 +66,9 @@ impl View {
 
 fn try_main() -> Result<(), String> {
 	use sdf::{Constant, R3ToR, R3ToR3, RToR};
+	let _test = Constant::gen_thread_random();
+	println!("{_test:?}");
+	
 	let funciton = R3ToR::compose(
 		R3ToR3::InfiniteMirrors(Constant::from(2.0)),
 		R3ToR::sphere_f32(0.2),
@@ -150,7 +157,7 @@ void main() {
 }",
 	);
 
-	println!("{fshader_source}");
+	//println!("{fshader_source}");
 
 	let program = window
 		.create_program(

@@ -1,6 +1,10 @@
 #![allow(dead_code)] // @TODO @TEMPORARY
+extern crate rand;
+extern crate gen_random_proc_macro;
 
 use std::fmt::{self, Display, Formatter, Write};
+use gen_random_proc_macro::GenRandom;
+use gen_random::GenRandom;
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
@@ -8,10 +12,12 @@ macro_rules! write_str {
 }
 
 /// these are constant across 3D space, not across time/user input/etc.
+#[derive(GenRandom, Debug)]
 pub enum Constant {
+	#[prob = 0.5]
 	F32(f32),
+	#[prob = 0.5]
 	Time(f32, f32),
-	// @TODO: sin, sqrt, mod
 }
 
 impl From<f32> for Constant {
