@@ -1,11 +1,12 @@
 #![allow(dead_code)] // @TODO @TEMPORARY
 
-use std::fmt::Write;
+use std::fmt::{self, Write, Display, Formatter};
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
 	($( $arg:tt )*) => { write!($($arg)*).unwrap() }
 }
+
 
 /// these are constant across 3D space, not across time/user input/etc.
 pub enum Constant {
@@ -87,6 +88,17 @@ impl R3ToR {
 	}
 }
 
+#[derive(Clone, Copy)]
+struct Variable {
+	id: u32
+}
+
+impl Display for Variable {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+		write!(f, "v{}", self.id)
+	}
+}
+
 struct VarCounter {
 	idx: u32,
 }
@@ -96,13 +108,13 @@ impl VarCounter {
 		Self { idx: 0 }
 	}
 
-	fn prev(&self) -> u32 {
+	fn prev(&self) -> Variable {
 		assert!(self.idx != 0);
-		self.idx - 1
+		Variable { id: self.idx - 1 }
 	}
 
-	fn next(&mut self) -> u32 {
-		let ret = self.idx;
+	fn next(&mut self) -> Variable {
+		let ret = Variable { id: self.idx};
 		self.idx += 1;
 		ret
 	}
@@ -113,12 +125,14 @@ pub struct Sdf {
 }
 
 trait Function {
-	/// treats `v<input>` as the input, and puts the output in `v<return value>`.
-	fn to_glsl(&self, input: u32, code: &mut String, var: &mut VarCounter) -> u32;
+	/// appends `code` with glsl code to apply the function to the input variable.
+	/// returns the output variable.
+	#[must_use]
+	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable;
 }
 
 impl Function for RToR {
-	fn to_glsl(&self, input: u32, code: &mut String, var: &mut VarCounter) -> u32 {
+	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use RToR::*;
 
 		match self {
@@ -126,7 +140,7 @@ impl Function for RToR {
 			Add(x) => {
 				write_str!(
 					code,
-					"float v{} = v{input} + {};\n",
+					"float {} = {input} + {};\n",
 					var.next(),
 					x.to_glsl()
 				);
@@ -137,7 +151,7 @@ impl Function for RToR {
 }
 
 impl Function for R3ToR3 {
-	fn to_glsl(&self, input: u32, code: &mut String, var: &mut VarCounter) -> u32 {
+	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR3::*;
 
 		match self {
@@ -145,7 +159,7 @@ impl Function for R3ToR3 {
 			Translate(by) => {
 				write_str!(
 					code,
-					"vec3 v{} = v{input} + {};\n",
+					"vec3 {} = {input} + {};\n",
 					var.next(),
 					by.to_glsl()
 				);
@@ -157,22 +171,22 @@ impl Function for R3ToR3 {
 }
 
 impl Function for R3ToR {
-	fn to_glsl(&self, input: u32, code: &mut String, var: &mut VarCounter) -> u32 {
+	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR::*;
 		match self {
 			// thanks to https://iquilezles.org/articles/distfunctions/ for
 			// these SDFs.
 			Sphere(r) => {
 				let r = r.to_glsl();
-				write_str!(code, "float v{} = length(v{input}) - {r};\n", var.next());
+				write_str!(code, "float {} = length({input}) - {r};\n", var.next());
 			}
 			Cube(r) => {
 				let r = r.to_glsl();
 				let q = var.next();
-				write_str!(code, "vec3 v{q} = abs(v{input}) - {r};\n");
+				write_str!(code, "vec3 {q} = abs({input}) - {r};\n");
 				write_str!(
 					code,
-					"float v{} = length(max(v{q},0.0)) + min(max(v{q}.x,max(v{q}.y,v{q}.z)),0.0);\n",
+					"float {} = length(max({q},0.0)) + min(max({q}.x,max({q}.y,{q}.z)),0.0);\n",
 					var.next()
 				)
 			}
@@ -182,7 +196,7 @@ impl Function for R3ToR {
 				let b_output = b.to_glsl(input, code, var);
 				write_str!(
 					code,
-					"float v{} = mix(v{a_output}, v{b_output}, clamp({t}, 0.0, 1.0));\n",
+					"float {} = mix({a_output}, {b_output}, clamp({t}, 0.0, 1.0));\n",
 					var.next()
 				);
 			}
@@ -191,7 +205,7 @@ impl Function for R3ToR {
 				let b_output = b.to_glsl(input, code, var);
 				write_str!(
 					code,
-					"float v{} = min(v{a_output}, v{b_output});\n",
+					"float {} = min({a_output}, {b_output});\n",
 					var.next()
 				);
 			},
@@ -204,7 +218,7 @@ impl Function for R3ToR {
 				let k = 0.2;
 				write_str!(
 					code,
-					"float v{} = smooth_min(v{a_output}, v{b_output}, {k});\n",
+					"float {} = sdf_smooth_min({a_output}, {b_output}, {k});\n",
 					var.next()
 				);
 			},
@@ -230,7 +244,7 @@ impl Sdf {
 	/// appends some glsl code including a function `float sdf(vec3) { ... }`
 	pub fn to_glsl(&self, code: &mut String) {
 		code.push_str("
-float smooth_min(float a, float b, float k) {
+float sdf_smooth_min(float a, float b, float k) {
 	k = clamp(k, 0.0, 1.0);
 	float h = max(k-abs(a-b), 0.0)/k;
 	return min(a, b) - h*h*h*k*(1.0/6.0);
@@ -238,9 +252,9 @@ float smooth_min(float a, float b, float k) {
 ");
 		code.push_str("float sdf(vec3 p) {\n");
 		let mut var = VarCounter::new();
-		write_str!(code, "vec3 v{} = p;\n", var.next());
+		write_str!(code, "vec3 {} = p;\n", var.next());
 		let output = self.distance_function.to_glsl(var.prev(), code, &mut var);
-		write_str!(code, "return v{output};\n");
+		write_str!(code, "return {output};\n");
 		code.push('}');
 	}
 }
