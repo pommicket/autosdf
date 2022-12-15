@@ -31,8 +31,7 @@ type Rot3 = Rotation3<f32>;
 
 struct View {
 	pos: Vec3,
-	yaw: f32,
-	pitch: f32,
+	rotation: Mat3,
 	level_set: f32,
 }
 
@@ -40,11 +39,10 @@ impl Default for View {
 	fn default() -> Self {
 		// don't start out right next to the origin, since weird stuff might be happening there
 		let pos = Vec3::new(0.0, 0.0, 4.0);
-
+		let rotation = Mat3::identity();
 		Self {
 			pos,
-			yaw: 0.0,
-			pitch: 0.0,
+			rotation,
 			level_set: 0.0,
 		}
 	}
@@ -53,7 +51,15 @@ impl Default for View {
 impl View {
 	/// `rotation() * vec3(0, 0, -1)` is the direction the camera is pointing
 	fn rotation(&self) -> Mat3 {
-		*Rot3::from_euler_angles(self.pitch, self.yaw, 0.0).matrix()
+		self.rotation
+	}
+
+	fn yaw_by(&mut self, yaw: f32) {
+		self.rotation = self.rotation * Rot3::from_euler_angles(0.0, yaw, 0.0);
+	}
+	
+	fn pitch_by(&mut self, pitch: f32) {
+		self.rotation = self.rotation * Rot3::from_euler_angles(pitch, 0.0, 0.0);
 	}
 
 	fn translation(&self) -> Mat4 {
@@ -70,7 +76,7 @@ fn try_main() -> Result<(), String> {
 	let my_sdf = if false {
 		sdf::Sdf::sphere(1.0)
 	} else {
-		sdf::Sdf::gen_thread_random_max_depth(7)
+		sdf::Sdf::gen_thread_random_max_depth(6)
 	};
 	println!("{my_sdf:?}");
 
@@ -144,9 +150,12 @@ void main() {
 		vec3 N = normal(p);
 		vec3 light_direction = normalize(vec3(.8,1,.6));
 		float L_diffuse = max(0., dot(N, light_direction));
+		// Phong lighting
 		vec3 R = reflect(light_direction, N);
 		vec3 view_direction = u_rotation * vec3(0.0, 0.0, -1.0);
-		float L_specular = pow(max(0.0, dot(R, view_direction)), 8.0);
+		// wikipedia calls this exponent the shininess (α)
+		float shininess = 16.0;
+		float L_specular = pow(max(0.0, dot(R, view_direction)), shininess);
 		float brightness = (1.0/threshold) * (threshold-min_dist);
 		brightness = pow(brightness, 16.0);
 		float L_ambient = 0.3;
@@ -211,8 +220,9 @@ void main() {
 				Quit | KeyDown(Escape) => break 'mainloop,
 				KeyDown(F1) => show_debug_info = !show_debug_info,
 				MouseMotion { xrel, yrel, .. } => {
-					view.yaw -= xrel as f32 * frame_dt;
-					view.pitch -= yrel as f32 * frame_dt;
+					let mouse_sensitivity = 0.33;
+					view.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
+					view.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
 				}
 				_ => {}
 			}

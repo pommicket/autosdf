@@ -15,7 +15,7 @@ macro_rules! write_str {
 pub enum Constant {
 	#[prob(0.5)]
 	F32(f32),
-	#[prob(0.5)]
+	#[prob(0)]
 	Time(
 	#[scale(0.2)]
 	#[bias(-0.1)]
