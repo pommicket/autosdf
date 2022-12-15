@@ -19,7 +19,7 @@ pub fn gen_random_derive(input: TokenStream) -> TokenStream {
 	impl_gen_random(&ast)
 }
 
-fn get_attribute_literal(attrs: &[syn::Attribute], name: &str) -> Option<proc_macro2::Literal> {
+fn get_attribute(attrs: &[syn::Attribute], name: &str) -> Option<proc_macro2::TokenStream> {
 	let attr = attrs.iter().find(|a| {
 		let path = &a.path;
 		if let Some(ident) = path.get_ident() {
@@ -30,25 +30,27 @@ fn get_attribute_literal(attrs: &[syn::Attribute], name: &str) -> Option<proc_ma
 	})?;
 
 	let tokens: TokenStream2 = attr.tokens.clone().into();
-	let mut tokens: Vec<TokenTree2> = tokens.into_iter().collect();
-	if tokens.len() != 2 {
-		panic!("Expected {name} = <value>");
+	let tokens: Vec<TokenTree2> = tokens.into_iter().collect();
+	if tokens.len() != 1 {
+		panic!("Expected {name}(<value>)");
 	}
-	use TokenTree2::{Punct, Literal};
-	match &tokens[0] {
-		Punct(equals) if equals.as_char() == '=' => {}
-		_ => panic!("Expected = after {name} attribute"),
+	use TokenTree2::Group;
+	use proc_macro2::Delimiter;
+	let value = match &tokens[0] {
+		Group(g) if g.delimiter() == Delimiter::Parenthesis => {
+			g.stream()
+		},
+		_ => {
+			panic!("Expected {name}(<value>)");
+		},
 	};
 	
-	let Literal(literal) = tokens.remove(1) else {
-		panic!("Bad value for {name} attribute.");
-	};
-	Some(literal)
+	Some(value)
 }
 
 fn parse_attribute_value<T: FromStr>(attrs: &[syn::Attribute], name: &str) -> Option<T> {
-	let literal = get_attribute_literal(attrs, name)?;
-	let Ok(value) = literal.to_string().parse() else {
+	let stream = get_attribute(attrs, name)?;
+	let Ok(value) = stream.to_string().parse() else {
 		panic!("Bad {} for {name} attribute", type_name::<T>())
 	};
 	Some(value)
@@ -63,11 +65,11 @@ fn generate_fields(fields: &syn::Fields) -> impl quote::ToTokens {
 		let ty = &field.ty;
 		field_values.extend(quote! { <#ty as GenRandom>::gen_random_max_depth(rng, _depth - 1) });
 		
-		if let Some(scale) = get_attribute_literal(&field.attrs, "scale") {
-			field_values.extend(quote! { * #scale });
+		if let Some(scale) = get_attribute(&field.attrs, "scale") {
+			field_values.extend(quote! { * ( #scale ) });
 		}
-		if let Some(bias) = get_attribute_literal(&field.attrs, "bias") {
-			field_values.extend(quote! { + #bias });
+		if let Some(bias) = get_attribute(&field.attrs, "bias") {
+			field_values.extend(quote! { + ( #bias ) });
 		}
 		
 		field_values.extend(quote! { , });

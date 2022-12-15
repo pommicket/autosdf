@@ -6,7 +6,7 @@ use std::cell::{Cell, RefCell};
 
 /// Generate random structs and enums!
 ///
-/// You shouldn't implement this trait yourself — instead, use the `derive` macro:
+/// You don't need to implement this trait yourself — instead, use the `derive` macro:
 /// ```
 /// use gen_random_proc_macro::GenRandom;
 /// use gen_random::GenRandom;
@@ -14,15 +14,15 @@ use std::cell::{Cell, RefCell};
 /// #[derive(GenRandom, Debug)]
 /// enum MyType {
 ///     // this variant will be chosen 7 / 10.5 = 2/3 of the time
-///     #[prob = 7]
+///     #[prob(7)]
 ///     Variant1(f64),
 ///     // this variant will be chosen 3.5 / 10.5 = 1/3 of the time
-///     #[prob = 3.5]
+///     #[prob(3.5)]
 ///     Variant2 {
 ///         // bias & scale attributes can be used for fields of type f32/f64.
 ///         // this makes `a` range from 2 to 6 (as opposed to the default 0 to 1).
-///         #[bias = 2.0]
-///         #[scale = 4.0]
+///         #[bias(2.0)]
+///         #[scale(4.0)]
 ///         a: f64,
 ///         // we can even include a randomly-generated MyType inside this MyType!
 ///         // be careful when doing this or else you might try to generate an infinite struct!
@@ -176,46 +176,46 @@ mod tests {
 
 	#[derive(GenRandom, Debug)]
 	enum Test1 {
-		#[prob = 0.2]
+		#[prob(0.2)]
 		A(f32),
-		#[prob = 0.8]
+		#[prob(0.8)]
 		B(Option<f32>),
 	}
 
 	#[derive(GenRandom, Debug)]
 	#[allow(dead_code)]
 	enum Test2 {
-		#[prob = 0.1]
+		#[prob(0.1)]
 		Variant1,
-		#[prob = 0.7]
+		#[prob(0.7)]
 		Variant2 { x: f32, y: f64, z: Test1 },
-		#[prob = 0.2]
+		#[prob(0.2)]
 		Variant3(f32, Box<Test2>),
 	}
 
 	#[derive(GenRandom, Debug)]
 	enum LinkedList {
-		#[prob = 10]
+		#[prob(10)]
 		Empty,
-		#[prob = 90]
+		#[prob(90)]
 		Cons(f32, Box<LinkedList>),
 	}
 
 	#[derive(GenRandom, Debug)]
 	enum BinaryTree {
-		#[prob = 1]
+		#[prob(1)]
 		Empty,
-		#[prob = 99]
+		#[prob(99)]
 		Node(f64, Box<BinaryTree>, Box<BinaryTree>)
 	}
 
 	#[derive(GenRandom, Debug)]
 	struct ScaleBias {
-		#[bias = 1.0]
-		#[scale = 10.0]
+		#[bias(1.0)]
+		#[scale(10.0)]
 		a: f32,
-		#[bias = 2.0]
-		#[scale = 0.0]
+		#[bias(2.0)]
+		#[scale(0.0)]
 		b: f32,
 	}
 

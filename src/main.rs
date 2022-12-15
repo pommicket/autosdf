@@ -1,5 +1,7 @@
 /*
 @TODO:
+- auto-select level set by sampling a bunch of points
+- Params instead of depth
 - fullscreen key
 - mathematical analysis
 - options for:
@@ -65,16 +67,7 @@ impl View {
 }
 
 fn try_main() -> Result<(), String> {
-// 	use sdf::{Constant, R3ToR, R3ToR3, RToR};
-// 	let _test = Constant::gen_thread_random();
-// 	println!("{_test:?}");
-// 
-// 	let funciton = R3ToR::compose(
-// 		R3ToR3::InfiniteMirrors(Constant::from(2.0)),
-// 		R3ToR::sphere_f32(0.2),
-// 		RToR::Identity,
-// 	);
-	let my_sdf = sdf::Sdf::gen_thread_random_max_depth(6);
+	let my_sdf = sdf::Sdf::gen_thread_random_max_depth(7);
 	println!("{my_sdf:?}");
 
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)

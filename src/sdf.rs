@@ -1,4 +1,3 @@
-#![allow(dead_code)] // @TODO @TEMPORARY
 extern crate gen_random_proc_macro;
 extern crate rand;
 
@@ -12,17 +11,44 @@ macro_rules! write_str {
 }
 
 /// these are constant across 3D space, not across time/user input/etc.
-#[derive(GenRandom, Debug)]
+#[derive(Debug, GenRandom)]
 pub enum Constant {
-	#[prob = 0.5]
+	#[prob(0.5)]
 	F32(f32),
-	#[prob = 0]
-	Time(f32, f32),
+	#[prob(0.5)]
+	Time(
+	#[scale(0.2)]
+	#[bias(-0.1)]
+	f32, f32),
 }
+
+
 
 impl From<f32> for Constant {
 	fn from(x: f32) -> Self {
 		Self::F32(x)
+	}
+}
+
+impl std::ops::Add<f32> for Constant {
+	type Output = Self;
+	fn add(self, a: f32) -> Self::Output {
+		use Constant::*;
+		match self {
+			F32(x) => F32(x + a),
+			Time(s, b) => Time(s, b + a),
+		}
+	}
+}
+
+impl std::ops::Mul<f32> for Constant {
+	type Output = Self;
+	fn mul(self, m: f32) -> Self::Output {
+		use Constant::*;
+		match self {
+			F32(x) => F32(x * m),
+			Time(s, b) => Time(s * m, b * m),
+		}
 	}
 }
 
@@ -39,6 +65,20 @@ impl Display for Constant {
 #[derive(GenRandom, Debug)]
 pub struct Constant3(Constant, Constant, Constant);
 
+impl std::ops::Add<f32> for Constant3 {
+	type Output = Self;
+	fn add(self, a: f32) -> Self::Output {
+		Self(self.0 + a, self.1 + a, self.2 + a)
+	}
+}
+
+impl std::ops::Mul<f32> for Constant3 {
+	type Output = Self;
+	fn mul(self, m: f32) -> Self::Output {
+		Self(self.0 * m, self.1 * m, self.2 * m)
+	}
+}
+
 impl From<(Constant, Constant, Constant)> for Constant3 {
 	fn from(x: (Constant, Constant, Constant)) -> Self {
 		Self(x.0, x.1, x.2)
@@ -54,41 +94,46 @@ impl Display for Constant3 {
 
 #[derive(GenRandom, Debug)]
 pub enum R3ToR3 {
-	#[prob = 0]
+	#[prob(0)]
 	Identity,
-	#[prob = 6]
+	#[prob(6)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
-	#[prob = 1]
+	#[prob(1)]
 	Translate(Constant3),
-	#[prob = 2]
+	#[prob(2)]
 	Sin(Constant),
-	#[prob = 2]
+	#[prob(2)]
 	InfiniteMirrors(Constant),
+	#[prob(2)]
+	#[scale(2 * std::f32::consts::PI)]
+	Rotate(Constant3),
+	#[prob(2)]
+	Arctan(Constant) // arctan(c x)  / c
 }
 
 #[derive(GenRandom, Debug)]
 pub enum RToR {
-	#[prob = 0]
+	#[prob(0)]
 	Identity,
-	#[prob = 2]
+	#[prob(2)]
 	Compose(Box<RToR>, Box<RToR>),
-	#[prob = 2]
-	Add(Constant),
+	#[prob(2)]
+	Subtract(Constant),
 }
 
 #[derive(GenRandom, Debug)]
 pub enum R3ToR {
-	#[prob = 1]
+	#[prob(1)]
 	Sphere(Constant),
-	#[prob = 1]
+	#[prob(1)]
 	Cube(Constant),
-	#[prob = 8]
+	#[prob(8)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
-	#[prob = 4]
+	#[prob(4)]
 	Mix(Box<R3ToR>, Box<R3ToR>, Constant),
-	#[prob = 2]
+	#[prob(2)]
 	SmoothMin(Box<R3ToR>, Box<R3ToR>),
-	#[prob = 2]
+	#[prob(2)]
 	Min(Box<R3ToR>, Box<R3ToR>),
 }
 
@@ -184,9 +229,9 @@ impl Function for RToR {
 
 		match self {
 			Identity => input,
-			Add(x) => {
+			Subtract(x) => {
 				let output = var.next();
-				write_str!(code, "float {output} = {input} + {x};\n");
+				write_str!(code, "float {output} = {input} - {x};\n");
 				output
 			}
 			Compose(a, b) => {
@@ -232,6 +277,31 @@ impl Function for R3ToR3 {
 			Compose(a, b) => {
 				let a_output = a.to_glsl(input, code, var);
 				b.to_glsl(a_output, code, var)
+			}
+			Arctan(c) => {
+				let output = var.next();
+				// we need to scale arctan(cx) so it doesn't break the SDF
+				write_str!(code, "vec3 {output} = (1.0 / {c}) * atan({c} * {input});\n");
+				output
+			},
+			Rotate(by) => {
+				// by = euler angles
+				// see https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
+				// for matrix
+				// this is the RzRyRx one
+				let c = var.next();
+				let s = var.next();
+				let m = var.next();
+				let output = var.next();
+				write_str!(code, "vec3 {c} = cos({by});\n");
+				write_str!(code, "vec3 {s} = sin({by});\n");
+				write_str!(code, "mat3 {m} = mat3(
+{c}.y*{c}.z, {s}.x*{s}.y*{c}.z - {c}.x*{s}.z, {c}.x*{s}.y*{c}.z + {s}.x*{s}.z,
+{c}.y*{s}.z, {s}.x*{s}.y*{s}.z + {c}.x*{c}.z, {c}.x*{s}.y*{s}.z - {s}.x*{c}.z,
+-{s}.y,    {s}.x*{c}.y,               {c}.x*{c}.y
+);\n");
+				write_str!(code, "vec3 {output} = {m} * {input};\n");
+				output
 			}
 		}
 	}
