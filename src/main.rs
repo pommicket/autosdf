@@ -67,7 +67,11 @@ impl View {
 }
 
 fn try_main() -> Result<(), String> {
-	let my_sdf = sdf::Sdf::gen_thread_random_max_depth(7);
+	let my_sdf = if false {
+		sdf::Sdf::sphere(1.0)
+	} else {
+		sdf::Sdf::gen_thread_random_max_depth(7)
+	};
 	println!("{my_sdf:?}");
 
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
@@ -137,10 +141,18 @@ void main() {
 
 	float threshold = 0.02;
 	if (min_dist < threshold) {
-		float L = 0.3 + max(0., dot(normal(p), normalize(vec3(.8,1,.6))));
+		vec3 N = normal(p);
+		vec3 light_direction = normalize(vec3(.8,1,.6));
+		float L_diffuse = max(0., dot(N, light_direction));
+		vec3 R = reflect(light_direction, N);
+		vec3 view_direction = u_rotation * vec3(0.0, 0.0, -1.0);
+		float L_specular = pow(max(0.0, dot(R, view_direction)), 8.0);
 		float brightness = (1.0/threshold) * (threshold-min_dist);
-		brightness = pow(brightness, 8.0);
-		final_color += L * brightness * vec3(1.0, 0.0, 0.0);
+		brightness = pow(brightness, 16.0);
+		float L_ambient = 0.3;
+		vec3 color = vec3(1.0, 0.0, 0.0);
+		float specularity = 0.15; // strength of specular lighting
+		final_color += brightness * mix(mix(L_diffuse, 1.0, L_ambient) * color, vec3(L_specular), specularity);
 		break;
 	}
 	
