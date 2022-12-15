@@ -4,6 +4,7 @@ extern crate rand;
 use gen_random::GenRandom;
 use gen_random_proc_macro::GenRandom;
 use std::fmt::{self, Display, Formatter, Write};
+use rand::Rng;
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
@@ -199,11 +200,6 @@ impl VarCounter {
 		Self { idx: 0 }
 	}
 
-	fn prev(&self) -> Variable {
-		assert!(self.idx != 0);
-		Variable { id: self.idx - 1 }
-	}
-
 	fn next(&mut self) -> Variable {
 		let ret = Variable { id: self.idx };
 		self.idx += 1;
@@ -211,19 +207,77 @@ impl VarCounter {
 	}
 }
 
-#[derive(Debug)]
-pub struct Sdf {
-	distance_function: R3ToR,
+/// a type in GLSL. this doesn't have all the types.
+enum GLSLType {
+	Float,
+	Vec3,
 }
 
-trait Function {
+impl fmt::Display for GLSLType {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		use GLSLType::*;
+		match self {
+			Float => write!(f, "float"),
+			Vec3 => write!(f, "vec3"),
+		}
+	}
+}
+
+trait Function: Sized + GenRandom {
 	/// appends `code` with glsl code to apply the function to the input variable.
 	/// returns the output variable.
 	#[must_use]
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable;
+
+	/// GLSL type which is the input to this function
+	fn input_type() -> GLSLType;
+	/// GLSL type which is the output of this function
+	fn output_type() -> GLSLType;
+		
+	/// adds GLSL code for function to `code`.
+	fn to_glsl_function(&self, name: &str, code: &mut String) {
+		let mut var = VarCounter::new();
+		let input = var.next();
+		write_str!(
+			code,
+			"{} {name}({} {input}) {{\n",
+			Self::output_type(),
+			Self::input_type()
+		);
+		let output = self.to_glsl(input, code, &mut var);
+		write_str!(
+			code,
+			"return {output};\n}}\n\n");
+	}
+	
+	fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
+		// to make sure the function isn't too boring or too slow,
+		// we'll generate a bunch then take the one with the median code length.
+		let mut functions = vec![];
+		for _i in 0..20 {
+			let f = Self::gen_random_max_depth(rng, max_depth);
+			let mut code = String::new();
+			let mut var = VarCounter::new();
+			let _ = f.to_glsl(var.next(), &mut code, &mut var);
+			let len = code.len();
+			
+			functions.push((len, f));
+		}
+		functions.sort_by_key(|x| x.0);
+		functions.remove(functions.len() / 2).1
+	}
+	
+	fn good_thread_random(max_depth: isize) -> Self {
+		Self::good_random(&mut rand::thread_rng(), max_depth)
+	}
 }
 
+
+
 impl Function for RToR {
+	fn input_type() -> GLSLType { GLSLType::Float }
+	fn output_type() -> GLSLType { GLSLType::Float }
+	
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use RToR::*;
 
@@ -243,6 +297,9 @@ impl Function for RToR {
 }
 
 impl Function for R3ToR3 {
+	fn input_type() -> GLSLType { GLSLType::Vec3 }
+	fn output_type() -> GLSLType { GLSLType::Vec3 }
+	
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR3::*;
 
@@ -308,6 +365,9 @@ impl Function for R3ToR3 {
 }
 
 impl Function for R3ToR {
+	fn input_type() -> GLSLType { GLSLType::Vec3 }
+	fn output_type() -> GLSLType { GLSLType::Float }
+	
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR::*;
 		match self {
@@ -355,7 +415,7 @@ impl Function for R3ToR {
 				let k = 0.2;
 				write_str!(
 					code,
-					"float {output} = sdf_smooth_min({a_output}, {b_output}, {k});\n"
+					"float {output} = smooth_min({a_output}, {b_output}, {k});\n"
 				);
 				output
 			}
@@ -368,57 +428,33 @@ impl Function for R3ToR {
 	}
 }
 
-impl GenRandom for Sdf {
-	fn gen_random_max_depth(rng: &mut impl rand::Rng, max_depth: isize) -> Self {
-		// to make sure the SDF isn't too boring or too slow,
-		// we'll generate a bunch then take the one with the median code length.
-		let mut distance_functions = vec![];
-		for _i in 0..20 {
-			let f = R3ToR::gen_random_max_depth(rng, max_depth);
-			let mut code = String::new();
-			let mut var = VarCounter::new();
-			let _ = f.to_glsl(var.next(), &mut code, &mut var);
-			let len = code.len();
-			
-			distance_functions.push((len, f));
-		}
-		distance_functions.sort_by_key(|x| x.0);
-		let distance_function = distance_functions.remove(distance_functions.len() / 2).1;
-		
-		Sdf {
-			distance_function
-		}
-	}
-}
 
-impl Sdf {
-	/// test sphere
-	pub fn sphere(r: f32) -> Self {
-		Self {
-			distance_function: R3ToR::Sphere(Constant::F32(r)),
-		}
+impl R3ToR {
+	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
+		<Self as Function>::good_random(rng, max_depth)
 	}
 	
-	pub fn from_function(distance_function: R3ToR) -> Self {
-		Self { distance_function }
+	pub fn good_thread_random(max_depth: isize) -> Self {
+		<Self as Function>::good_thread_random(max_depth)
 	}
+	
+	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
+		<Self as Function>::to_glsl_function(self, name, code);
+	}
+}
 
-	/// appends some glsl code including a function `float sdf(vec3) { ... }`
-	pub fn to_glsl(&self, code: &mut String) {
-		code.push_str(
-			"
-float sdf_smooth_min(float a, float b, float k) {
-	k = clamp(k, 0.0, 1.0);
-	float h = max(k-abs(a-b), 0.0)/k;
-	return min(a, b) - h*h*h*k*(1.0/6.0);
-}
-",
-		);
-		code.push_str("float sdf(vec3 p) {\n");
-		let mut var = VarCounter::new();
-		write_str!(code, "vec3 {} = p;\n", var.next());
-		let output = self.distance_function.to_glsl(var.prev(), code, &mut var);
-		write_str!(code, "return {output};\n");
-		code.push('}');
+impl R3ToR3 {
+	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
+		<Self as Function>::good_random(rng, max_depth)
+	}
+	
+	pub fn good_thread_random(max_depth: isize) -> Self {
+		<Self as Function>::good_thread_random(max_depth)
+	}
+	
+	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
+		<Self as Function>::to_glsl_function(self, name, code);
 	}
 }
+
+

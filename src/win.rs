@@ -463,16 +463,20 @@ pub struct Program {
 }
 
 impl Program {
-	fn new(shaders: &[Shader]) -> Result<Self, String> {
+	fn new() -> Self {
 		let id = unsafe { gl::CreateProgram() };
-		let result = Self::new_with_id(id, shaders);
-		if result.is_err() {
-			unsafe { gl::DeleteShader(id) };
-		}
-		result
+		Self { id }
+	}
+	
+	fn new_with_shaders(shaders: &[Shader]) -> Result<Self, String> {
+		let mut program = Self::new();
+		program.relink(shaders)?;
+		Ok(program)
 	}
 
-	fn new_with_id(id: GLuint, shaders: &[Shader]) -> Result<Self, String> {
+	
+	fn relink(&mut self, shaders: &[Shader]) -> Result<(), String> {
+		let id = self.id;
 		for shader in shaders {
 			unsafe { gl::AttachShader(id, shader.id) };
 		}
@@ -496,8 +500,14 @@ impl Program {
 				return Err("failed to link".to_string());
 			}
 		}
+		
+		for shader in shaders {
+			unsafe {
+				gl::DetachShader(id, shader.id);
+			}
+		}
 
-		Ok(Self { id })
+		Ok(())
 	}
 }
 
@@ -740,6 +750,11 @@ impl Window {
 			sdl::set_relative_mouse_mode(relative);
 		}
 	}
+	
+	/// new empty shader program
+	pub fn new_program(&mut self) -> Program {
+		Program::new()
+	}
 
 	pub fn create_program(
 		&mut self,
@@ -748,7 +763,18 @@ impl Window {
 	) -> Result<Program, String> {
 		let vshader = Shader::new(gl::VERTEX_SHADER, source_vshader)?;
 		let fshader = Shader::new(gl::FRAGMENT_SHADER, source_fshader)?;
-		Program::new(&[vshader, fshader])
+		Program::new_with_shaders(&[vshader, fshader])
+	}
+	
+	pub fn link_program(
+		&mut self,
+		program: &mut Program,
+		source_vshader: &str,
+		source_fshader: &str,
+	) -> Result<(), String> {
+		let vshader = Shader::new(gl::VERTEX_SHADER, source_vshader)?;
+		let fshader = Shader::new(gl::FRAGMENT_SHADER, source_fshader)?;
+		program.relink(&[vshader, fshader])
 	}
 
 	pub fn create_buffer(&mut self) -> Buffer {

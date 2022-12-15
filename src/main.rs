@@ -1,26 +1,32 @@
 /*
 @TODO:
 - auto-select level set by sampling a bunch of points
+- bring time back, w pause/rewind/adjust time speed (start out paused?)
 - Params instead of depth
+- seed control (maybe save seeds to a file then let user go back&forth through past sdfs)
 - fullscreen key
 - mathematical analysis
 - options for:
 	- max framerate
 	- mouse sensitivity
+	- fov, focal length
 	- AA quality
 	- # iterations, distance cutoff
 - documentation
-- GenRandom integers (+ gen_random_scale_bias)
+- GenRandom integers (+ gen_random_scale_bias
+
+-----
+cool seeds:
+18413841503509874975
+**17878446840930313726
 */
 
-extern crate gen_random;
 extern crate nalgebra;
 
 pub mod sdf;
 mod sdl;
 pub mod win;
 
-use gen_random::GenRandom;
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use std::time::Instant;
 
@@ -72,17 +78,13 @@ impl View {
 	}
 }
 
-fn try_main() -> Result<(), String> {
-	let my_sdf = if false {
-		sdf::Sdf::sphere(1.0)
-	} else {
-		sdf::Sdf::gen_thread_random_max_depth(6)
-	};
-	println!("{my_sdf:?}");
-
-	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
-		.map_err(|e| format!("Error creating window: {e}"))?;
-
+fn gen_program_with_seed(window: &mut win::Window, program: &mut win::Program, seed: u64) -> Result<(), String> {
+	use rand::SeedableRng;
+	
+	let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
+	let my_sdf = sdf::R3ToR::good_random(&mut rng, 6);
+	let color_function = sdf::R3ToR3::good_random(&mut rng, 7);
+	
 	let mut fshader_source = String::new();
 	fshader_source.push_str(
 		"
@@ -93,11 +95,44 @@ uniform float u_time;
 uniform float u_fov;
 uniform float u_focal_length;
 uniform float u_level_set;
+uniform int u_hsv;
+
+float smooth_min(float a, float b, float k) {
+	k = clamp(k, 0.0, 1.0);
+	float h = max(k-abs(a-b), 0.0)/k;
+	return min(a, b) - h*h*h*k*(1.0/6.0);
+}
 ",
 	);
-	my_sdf.to_glsl(&mut fshader_source);
+	my_sdf.to_glsl_function("sdf", &mut fshader_source);
+	color_function.to_glsl_function("get_color_", &mut fshader_source);
 	fshader_source.push_str(
 		"
+		
+// see https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB_alternative
+float hsvf(float n, vec3 hsv) {
+	float k = mod(n + hsv.x * 6.0, 6.0);
+	return hsv.z - hsv.z * hsv.y * clamp(min(k, 4.0 - k), 0.0, 1.0);
+}
+
+vec3 hsv_to_rgb(vec3 hsv) {
+	hsv.yz = clamp(hsv.yz, 0.0, 1.0);
+	return vec3(hsvf(5.0, hsv), hsvf(3.0, hsv), hsvf(1.0, hsv));
+}
+
+vec3 get_color(vec3 p) {
+	if (u_hsv != 0) {
+		vec3 hsv = get_color_(p);
+		// make sure object isn't too dark so we can actually see it
+		hsv.z = mix(hsv.z, 1.0, 0.5);
+		return hsv_to_rgb(hsv);
+	} else {
+		// in theory we should clamp this but it actually looks better if we don't
+		// (it makes the object glow)
+		return get_color_(p);
+	}
+}
+
 #define ITERATIONS 30
 #define AA_X 1
 #define AA_Y 1
@@ -134,7 +169,7 @@ void main() {
 	p += u_translation;
 	if (sdf(p) < 0.0) {
 		// looking inside object
-		o_color = vec4(1.0, 0.0, 1.0, 1.0);
+		o_color = vec4(get_color(p), 1.0);
 		return;
 	}
 	int i;
@@ -159,7 +194,7 @@ void main() {
 		float brightness = (1.0/threshold) * (threshold-min_dist);
 		brightness = pow(brightness, 16.0);
 		float L_ambient = 0.3;
-		vec3 color = vec3(1.0, 0.0, 0.0);
+		vec3 color = get_color(p);
 		float specularity = 0.15; // strength of specular lighting
 		final_color += brightness * mix(mix(L_diffuse, 1.0, L_ambient) * color, vec3(L_specular), specularity);
 		break;
@@ -173,10 +208,11 @@ void main() {
 	);
 
 	//println!("{fshader_source}");
+	println!("seed: {seed}");
 
-	let program = window
-		.create_program(
-			"attribute vec2 v_pos;
+	window
+		.link_program(program,
+			"IN vec2 v_pos;
 		OUT vec2 pos;
 		uniform float u_aspect_ratio;
 		
@@ -187,6 +223,20 @@ void main() {
 			&fshader_source,
 		)
 		.map_err(|e| format!("Error compiling shader:\n{e}"))?;
+	Ok(())
+}
+
+fn gen_program(window: &mut win::Window, program: &mut win::Program) -> Result<(), String> {
+	let seed = rand::random::<u64>();
+	gen_program_with_seed(window, program, seed)
+}
+
+fn try_main() -> Result<(), String> {
+
+	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
+		.map_err(|e| format!("Error creating window: {e}"))?;
+	let mut program = window.new_program();
+	gen_program(&mut window, &mut program)?;
 
 	let mut buffer = window.create_buffer();
 	let data: &[[f32; 2]] = &[
@@ -219,8 +269,13 @@ void main() {
 			match event {
 				Quit | KeyDown(Escape) => break 'mainloop,
 				KeyDown(F1) => show_debug_info = !show_debug_info,
+				KeyDown(R) => {
+					gen_program(&mut window, &mut program)?;
+					view.level_set = 0.0;
+				},
+				KeyDown(N0) => view.level_set = 0.0,
 				MouseMotion { xrel, yrel, .. } => {
-					let mouse_sensitivity = 0.33;
+					let mouse_sensitivity = 0.05;
 					view.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
 					view.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
 				}

@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 gl = "0.14"
 nalgebra = "0.31"
-rand = "0.8"
 gen_random_proc_macro = { path = "./gen_random_proc_macro" }
 gen_random = { path = "./gen_random" }
+rand = { version = "0.8", features = ["small_rng"] }
