@@ -24,6 +24,9 @@ commit ae29a61c9917da5ad9fbb7a24151bff506669ffb "cool stuff"
 commit 35cbbb40298389efcd2fe87a9c6458d49c1c567e "add torus, box frame"
 2876923889725946210
 *12145962426879404199
+commit d7f810524a30843417253f80e454f1d9173aaeb3 "more functions"
+2607779313513160780
+16956394651920792998
 */
 
 extern crate nalgebra;
@@ -148,9 +151,9 @@ vec3 get_color(vec3 p) {
 		hsv.z = mix(hsv.z, 1.0, 0.5);
 		return hsv_to_rgb(hsv);
 	} else {
-		// in theory we should clamp this but it actually looks better if we don't
-		// (it makes the object glow)
-		return mix(get_color_(p), vec3(1.0), 0.2);
+		// we're not clamping this because it makes a cool glowing effect if we don't
+		vec3 color = get_color_(p);
+		return mix(color, vec3(1.0), 0.2);
 	}
 }
 
@@ -337,8 +340,9 @@ fn try_main() -> Result<(), String> {
 			if window.any_key_down(&[PageDown, NumPad3, N]) {
 				dl -= 1.0;
 			}
-			let speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
-
+			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
+			speed_multiplier *= if window.is_ctrl_down() { 0.1 } else { 1.0 };
+			
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
 				let move_speed = 4.0 * speed_multiplier;
