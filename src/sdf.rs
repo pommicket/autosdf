@@ -102,16 +102,26 @@ pub enum R3ToR3 {
 	#[prob(1)]
 	Translate(Constant3),
 	#[prob(2)]
-	Sin(Constant),
+	#[bias(0.01)] // prevent division by 0
+	Sin(Constant), // 1/c sin(cx)
 	#[prob(2)]
+	#[bias(0.01)]
 	InfiniteMirrors(Constant),
 	#[prob(2)]
 	#[scale(2 * std::f32::consts::PI)]
 	Rotate(Constant3),
 	#[prob(2)]
-	Arctan(Constant) // arctan(c x)  / c
+	Arctan(Constant), // arctan(c x)  / c
+	#[prob(2)]
+	#[bias(0.01)]
+	SqSin(Constant), // based on 1/x² sin(x²)
+	#[prob(2)]
+	#[bias(0.01)]
+	Sigmoid //based on sigmoid(x) = 1 / (1 + e^-x)
 }
 
+// note : i dont think R → R transformations really accomplish that much
+// that can't be done with R³ → R³.
 #[derive(GenRandom, Debug)]
 pub enum RToR {
 	#[prob(1)]
@@ -372,6 +382,19 @@ impl Function for R3ToR3 {
 -{s}.y,    {s}.x*{c}.y,               {c}.x*{c}.y
 );\n");
 				write_str!(code, "vec3 {output} = {m} * {input};\n");
+				output
+			}
+			SqSin(c) => {
+				let output = var.next();
+				let a = var.next();
+				write_str!(code, "vec3 {a} = 0.1 + abs({input});\n");
+				write_str!(code, "{a} *= {a};\n");
+				write_str!(code, "vec3 {output} = 0.7593/(pow({c},1.5)*{a}) * sin({c}*{a});\n");
+				output
+			}
+			Sigmoid => {
+				let output = var.next();
+				write_str!(code, "vec3 {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n");
 				output
 			}
 		}

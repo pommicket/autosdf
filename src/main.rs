@@ -18,9 +18,12 @@
 
 -----
 cool seeds:
-commit ae29a61c9917da5ad9fbb7a24151bff506669ffb
+commit ae29a61c9917da5ad9fbb7a24151bff506669ffb "cool stuff"
 18413841503509874975
 **17878446840930313726
+commit 35cbbb40298389efcd2fe87a9c6458d49c1c567e "add torus, box frame"
+2876923889725946210
+*12145962426879404199
 */
 
 extern crate nalgebra;
@@ -147,7 +150,7 @@ vec3 get_color(vec3 p) {
 	} else {
 		// in theory we should clamp this but it actually looks better if we don't
 		// (it makes the object glow)
-		return get_color_(p);
+		return mix(get_color_(p), vec3(1.0), 0.2);
 	}
 }
 
