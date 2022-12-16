@@ -27,6 +27,7 @@ commit 35cbbb40298389efcd2fe87a9c6458d49c1c567e "add torus, box frame"
 commit d7f810524a30843417253f80e454f1d9173aaeb3 "more functions"
 2607779313513160780
 16956394651920792998
+3714031566539178742
 */
 
 extern crate nalgebra;
@@ -200,7 +201,7 @@ void main() {
 	for (i = 0; i < ITERATIONS; i++) {
 		float dist = sdf(p);
 		min_dist = min(min_dist, dist);
-		if (dist > 100.0) break;//little optimization
+		if (dist > 100.0) break;
 		p += dist * delta;
 	}
 
@@ -313,9 +314,7 @@ fn try_main() -> Result<(), String> {
 			let mut dy = 0.0;
 			let mut dz = 0.0;
 			let mut dl = 0.0;
-			use win::Key::{
-				Down, Left, NumPad3, NumPad9, PageDown, PageUp, Right, Up, A, D, E, M, N, Q, S, W,
-			};
+			use win::Key::*;
 			if window.any_key_down(&[W, Up]) {
 				dz -= 1.0;
 			}
@@ -334,10 +333,10 @@ fn try_main() -> Result<(), String> {
 			if window.is_key_down(E) {
 				dy -= 1.0;
 			}
-			if window.any_key_down(&[PageUp, NumPad9, M]) {
+			if window.any_key_down(&[PageUp, NumPad9, Equals]) {
 				dl += 1.0;
 			}
-			if window.any_key_down(&[PageDown, NumPad3, N]) {
+			if window.any_key_down(&[PageDown, NumPad3, Minus]) {
 				dl -= 1.0;
 			}
 			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
