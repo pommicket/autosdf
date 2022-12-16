@@ -114,11 +114,11 @@ pub enum R3ToR3 {
 
 #[derive(GenRandom, Debug)]
 pub enum RToR {
-	#[prob(0)]
+	#[prob(1)]
 	Identity,
-	#[prob(2)]
+	#[prob(0)]
 	Compose(Box<RToR>, Box<RToR>),
-	#[prob(2)]
+	#[prob(0)]
 	Subtract(Constant),
 }
 
@@ -128,6 +128,20 @@ pub enum R3ToR {
 	Sphere(Constant),
 	#[prob(1)]
 	Cube(Constant),
+	#[prob(1)]
+	BoxFrame {
+		#[scale(3.0)]
+		size: Constant,
+		#[scale(0.2)]
+		thickness: Constant
+	},
+	#[prob(1)]
+	Torus { 
+		#[scale(3.0)]
+		radius: Constant,
+		#[scale(0.2)]
+		thickness: Constant
+	},
 	#[prob(8)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
 	#[prob(4)]
@@ -386,6 +400,16 @@ impl Function for R3ToR {
 					code,
 					"float {output} = length(max({q},0.0)) + min(max({q}.x,max({q}.y,{q}.z)),0.0);\n"
 				);
+				output
+			}
+			BoxFrame { size, thickness } => {
+				let output = var.next();
+				write_str!(code, "float {output} = sdf_box_frame({input}, vec3({size}), {thickness});\n");
+				output
+			}
+			Torus { radius, thickness } => {
+				let output = var.next();
+				write_str!(code, "float {output} = sdf_torus({input}, vec2({radius}, {thickness}));\n");
 				output
 			}
 			Mix(a, b, t) => {
