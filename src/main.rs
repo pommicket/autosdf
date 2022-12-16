@@ -87,12 +87,7 @@ impl View {
 	}
 }
 
-fn gen_program_with_seed(window: &mut win::Window, program: &mut win::Program, seed: u64) -> Result<(), String> {
-	use rand::SeedableRng;
-	
-	let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
-	let my_sdf = sdf::R3ToR::good_random(&mut rng, 6);
-	let color_function = sdf::R3ToR3::good_random(&mut rng, 7);
+fn gen_program_from_scene(window: &mut win::Window, program: &mut win::Program, scene: &sdf::Scene) -> Result<(), String> {
 	
 	let mut fshader_source = String::new();
 	fshader_source.push_str(
@@ -129,8 +124,8 @@ float sdf_torus(vec3 p, vec2 t) {
 }
 ",
 	);
-	my_sdf.to_glsl_function("sdf", &mut fshader_source);
-	color_function.to_glsl_function("get_color_", &mut fshader_source);
+	scene.sdf.to_glsl_function("sdf", &mut fshader_source);
+	scene.color_function.to_glsl_function("get_color_", &mut fshader_source);
 	fshader_source.push_str(
 		"
 		
@@ -233,7 +228,7 @@ void main() {
 	);
 
 	//println!("{fshader_source}");
-	println!("seed: {seed}");
+	println!("scene: {}", scene.to_string());
 
 	window
 		.link_program(program,
@@ -251,10 +246,30 @@ void main() {
 	Ok(())
 }
 
+fn gen_program_with_seed(window: &mut win::Window, program: &mut win::Program, seed: u64) -> Result<(), String> {
+	use rand::SeedableRng;
+	
+	let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
+	let my_sdf = sdf::R3ToR::good_random(&mut rng, 6);
+	let color_function = sdf::R3ToR3::good_random(&mut rng, 7);
+	let scene = sdf::Scene {
+		sdf: my_sdf,
+		color_function
+	};
+	gen_program_from_scene(window, program, &scene)
+}
+
 fn gen_program(window: &mut win::Window, program: &mut win::Program) -> Result<(), String> {
 	let seed = rand::random::<u64>();
 	gen_program_with_seed(window, program, seed)
 }
+
+#[allow(dead_code)] // @TODO @TEMPORARY
+fn gen_program_from_string(window: &mut win::Window, program: &mut win::Program, s: &str) -> Result<(), String> {
+	let scene = sdf::Scene::from_string(s).ok_or_else(|| "bad scene string".to_string())?;
+	gen_program_from_scene(window, program, &scene)
+}
+
 
 fn try_main() -> Result<(), String> {
 
@@ -262,6 +277,7 @@ fn try_main() -> Result<(), String> {
 		.map_err(|e| format!("Error creating window: {e}"))?;
 	let mut program = window.new_program();
 	gen_program(&mut window, &mut program)?;
+	//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
 
 	let mut buffer = window.create_buffer();
 	let data: &[[f32; 2]] = &[

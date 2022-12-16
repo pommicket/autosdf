@@ -1,3 +1,5 @@
+extern crate serde_cbor;
+extern crate serde;
 extern crate gen_random_proc_macro;
 extern crate rand;
 
@@ -5,6 +7,7 @@ use gen_random::GenRandom;
 use gen_random_proc_macro::GenRandom;
 use std::fmt::{self, Display, Formatter, Write};
 use rand::Rng;
+use serde_derive::{Serialize, Deserialize};
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
@@ -12,7 +15,7 @@ macro_rules! write_str {
 }
 
 /// these are constant across 3D space, not across time/user input/etc.
-#[derive(Debug, GenRandom)]
+#[derive(Debug, GenRandom, Serialize, Deserialize)]
 pub enum Constant {
 	#[prob(0.5)]
 	F32(f32),
@@ -63,7 +66,7 @@ impl Display for Constant {
 	}
 }
 
-#[derive(GenRandom, Debug)]
+#[derive(GenRandom, Debug, Serialize, Deserialize)]
 pub struct Constant3(Constant, Constant, Constant);
 
 impl std::ops::Add<f32> for Constant3 {
@@ -93,7 +96,7 @@ impl Display for Constant3 {
 	}
 }
 
-#[derive(GenRandom, Debug)]
+#[derive(GenRandom, Debug, Serialize, Deserialize)]
 pub enum R3ToR3 {
 	#[prob(0)]
 	Identity,
@@ -122,7 +125,7 @@ pub enum R3ToR3 {
 
 // note : i dont think R → R transformations really accomplish that much
 // that can't be done with R³ → R³.
-#[derive(GenRandom, Debug)]
+#[derive(GenRandom, Debug, Serialize, Deserialize)]
 pub enum RToR {
 	#[prob(1)]
 	Identity,
@@ -132,7 +135,7 @@ pub enum RToR {
 	Subtract(Constant),
 }
 
-#[derive(GenRandom, Debug)]
+#[derive(GenRandom, Debug, Serialize, Deserialize)]
 pub enum R3ToR {
 	#[prob(1)]
 	Sphere(Constant),
@@ -475,6 +478,31 @@ impl Function for R3ToR {
 	}
 }
 
+/// encode `data` in hexadecimal
+fn encode_hex(data: &[u8]) -> String {
+	let mut s = String::with_capacity(data.len() * 2);
+	for byte in data {
+		write_str!(s, "{byte:02x}");
+	}
+	s
+}
+
+/// decode `data` from hexadecimal.
+/// returns None if this isn't a valid hexadecimal string.
+fn decode_hex(data: &str) -> Option<Vec<u8>> {
+	let data = data.trim();
+	if data.len() % 2 != 0 {
+		return None
+	}
+	
+	let mut bytes = Vec::with_capacity(data.len() / 2);
+	for i in 0..data.len() / 2 {
+		let s = data.get(2*i..2*i+2)?;
+		let byte = u8::from_str_radix(s, 16).ok()?;
+		bytes.push(byte);
+	}
+	Some(bytes)
+}
 
 impl R3ToR {
 	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
@@ -501,6 +529,28 @@ impl R3ToR3 {
 	
 	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
 		<Self as Function>::to_glsl_function(self, name, code);
+	}
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Scene {
+	pub sdf: R3ToR,
+	pub color_function: R3ToR3
+}
+
+impl Scene {
+	pub fn to_string(&self) -> String {
+		let mut data: Vec<u8> = vec![];
+		// write errors should never happen
+		// that said, we don't want to panic if for whatever reason this fails.
+		let _ = serde_cbor::to_writer(&mut data, self);
+		encode_hex(&data)
+	}
+	
+	/// returns None if `s` is not a valid SDF string
+	pub fn from_string(s: &str) -> Option<Self> {
+		let bytes = decode_hex(s)?;
+		serde_cbor::from_reader(&bytes[..]).ok()?
 	}
 }
 
