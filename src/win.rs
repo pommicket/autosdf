@@ -652,6 +652,49 @@ pub struct Texture {
 	params: TextureParams,
 }
 
+impl Texture {
+	unsafe fn bind(&self) {
+		gl::BindTexture(gl::TEXTURE_2D, self.id);
+	}
+	
+	unsafe fn set_data(&mut self, data: &[u8], width: usize, height: usize) -> Result<(), String> {
+		let width = width as GLsizei;
+		let height = height as GLsizei;
+		let expected_len = 4 * width * height;
+		if data.len() as GLsizei != expected_len {
+			return Err(format!(
+				"bad data length (expected {}, got {})",
+				expected_len,
+				data.len()
+			));
+		}
+		let params = &self.params;
+		self.bind();
+		gl::TexImage2D(
+			gl::TEXTURE_2D,
+			0,
+			gl::RGBA as _,
+			width,
+			height,
+			0,
+			gl::RGBA,
+			gl::UNSIGNED_BYTE,
+			data.as_ptr() as _,
+		);
+		gl::TexParameteri(
+			gl::TEXTURE_2D,
+			gl::TEXTURE_MIN_FILTER,
+			params.min_filter.to_gl(),
+		);
+		gl::TexParameteri(
+			gl::TEXTURE_2D,
+			gl::TEXTURE_MAG_FILTER,
+			params.mag_filter.to_gl(),
+		);
+		Ok(())
+	}
+}
+
 impl Drop for Texture {
 	fn drop(&mut self) {
 		unsafe { gl::DeleteTextures(1, (&self.id) as *const GLuint) };
@@ -686,6 +729,69 @@ impl Default for TextureParams {
 			min_filter: TextureFilter::Nearest,
 			mag_filter: TextureFilter::Linear,
 		}
+	}
+}
+
+#[derive(Clone, Copy)]
+pub enum FramebufferAttachment {
+	// 8 color attachments ought to be enough for anyone.
+	Color0,
+	Color1,
+	Color2,
+	Color3,
+	Color4,
+	Color5,
+	Color6,
+	Color7,
+	Depth,
+	Stencil,
+	DepthStencil
+}
+
+impl FramebufferAttachment {
+	fn to_gl(self) -> GLenum {
+		use FramebufferAttachment::*;
+		match self {
+			Color0 => gl::COLOR_ATTACHMENT0,
+			Color1 => gl::COLOR_ATTACHMENT1,
+			Color2 => gl::COLOR_ATTACHMENT2,
+			Color3 => gl::COLOR_ATTACHMENT3,
+			Color4 => gl::COLOR_ATTACHMENT4,
+			Color5 => gl::COLOR_ATTACHMENT5,
+			Color6 => gl::COLOR_ATTACHMENT6,
+			Color7 => gl::COLOR_ATTACHMENT7,
+			Depth => gl::DEPTH_ATTACHMENT,
+			Stencil => gl::STENCIL_ATTACHMENT,
+			DepthStencil => gl::DEPTH_STENCIL_ATTACHMENT,
+		}
+	}
+}
+
+pub struct Framebuffer {
+	id: GLuint
+}
+
+impl Framebuffer {
+	unsafe fn new() -> Self {
+		let mut id: GLuint = 0;
+		gl::GenFramebuffers(1, (&mut id) as *mut GLuint);
+		Self { id }
+	}
+	
+	unsafe fn bind(&self) {
+		gl::BindTexture(gl::FRAMEBUFFER, self.id);
+	}
+	
+	unsafe fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
+		self.bind();
+		texture.bind();
+		gl::FramebufferTexture2D(gl::FRAMEBUFFER, attachment.to_gl(), gl::TEXTURE_2D, texture.id, 0);
+	}
+}
+
+impl Drop for Framebuffer {
+	fn drop(&mut self) {
+		unsafe { gl::DeleteFramebuffers(1, (&self.id) as *const GLuint) };
 	}
 }
 
@@ -816,6 +922,17 @@ impl Window {
 	pub fn array_attrib4f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
 		self.array_attribnf(array, 4, name, offset)
 	}
+	
+	pub fn create_framebuffer(&mut self) -> Framebuffer {
+		unsafe { Framebuffer::new() }
+	}
+	
+	/// Attach texture to framebuffer.
+	/// In theory this should check that `framebuffer` does not outlive `texture`,
+	/// but that would be difficult to do in a nice way.
+	pub fn set_framebuffer_texture(&mut self, framebuffer: &mut Framebuffer, attachment: FramebufferAttachment, texture: &Texture) {
+		unsafe { framebuffer.set_texture(attachment, texture) };
+	}
 
 	pub fn size(&self) -> (i32, i32) {
 		let mut x = 0;
@@ -893,41 +1010,7 @@ impl Window {
 		width: usize,
 		height: usize,
 	) -> Result<(), String> {
-		let width = width as GLsizei;
-		let height = height as GLsizei;
-		let expected_len = 4 * width * height;
-		if data.len() as GLsizei != expected_len {
-			return Err(format!(
-				"bad data length (expected {}, got {})",
-				expected_len,
-				data.len()
-			));
-		}
-		let params = &texture.params;
-		unsafe {
-			gl::BindTexture(gl::TEXTURE_2D, texture.id);
-			gl::TexImage2D(
-				gl::TEXTURE_2D,
-				0,
-				gl::RGBA as _,
-				width,
-				height,
-				0,
-				gl::RGBA,
-				gl::UNSIGNED_BYTE,
-				data.as_ptr() as _,
-			);
-			gl::TexParameteri(
-				gl::TEXTURE_2D,
-				gl::TEXTURE_MIN_FILTER,
-				params.min_filter.to_gl(),
-			);
-			gl::TexParameteri(
-				gl::TEXTURE_2D,
-				gl::TEXTURE_MAG_FILTER,
-				params.mag_filter.to_gl(),
-			);
-		}
+		unsafe { texture.set_data(data, width, height) }?;
 		Ok(())
 	}
 
