@@ -428,7 +428,10 @@ impl Shader {
 
 	unsafe fn new_with_id(id: GLuint, r#type: GLenum, source: &str) -> Result<Self, String> {
 		if id == 0 {
-			return Err(format!("couldn't create shader (GL error {})", gl::GetError()));
+			return Err(format!(
+				"couldn't create shader (GL error {})",
+				gl::GetError()
+			));
 		}
 
 		{
@@ -481,7 +484,10 @@ out vec4 o_color;
 			}
 		}
 
-		Ok(Self { id, _unused: 0 as _ })
+		Ok(Self {
+			id,
+			_unused: 0 as _,
+		})
 	}
 }
 
@@ -500,16 +506,18 @@ pub struct Program {
 impl Program {
 	unsafe fn new() -> Self {
 		let id = gl::CreateProgram();
-		Self { id, _unused: 0 as _ }
+		Self {
+			id,
+			_unused: 0 as _,
+		}
 	}
-	
+
 	unsafe fn new_with_shaders(shaders: &[Shader]) -> Result<Self, String> {
 		let mut program = Self::new();
 		program.relink(shaders)?;
 		Ok(program)
 	}
 
-	
 	unsafe fn relink(&mut self, shaders: &[Shader]) -> Result<(), String> {
 		let id = self.id;
 		for shader in shaders {
@@ -535,7 +543,7 @@ impl Program {
 				return Err("failed to link".to_string());
 			}
 		}
-		
+
 		for shader in shaders {
 			gl::DetachShader(id, shader.id);
 		}
@@ -695,12 +703,17 @@ impl Texture {
 			_unused: 0 as _,
 		}
 	}
-	
+
 	unsafe fn bind(&self) {
 		gl::BindTexture(gl::TEXTURE_2D, self.id);
 	}
-	
-	unsafe fn set_data<T: Color>(&mut self, data: &[T], width: usize, height: usize) -> Result<(), String> {
+
+	unsafe fn set_data<T: Color>(
+		&mut self,
+		data: &[T],
+		width: usize,
+		height: usize,
+	) -> Result<(), String> {
 		self.width = width;
 		self.height = height;
 		let width: GLsizei = width.try_into().map_err(|_| "width too large")?;
@@ -738,27 +751,33 @@ impl Texture {
 		);
 		Ok(())
 	}
-	
+
 	pub fn width(&self) -> usize {
 		self.width
 	}
-	
+
 	pub fn height(&self) -> usize {
 		self.height
 	}
-	
+
 	/// panicks if `data` is the wrong length (should be exactly `self.width() * self.height()`).
- 	unsafe fn get_data<T: Color>(&mut self, data: &mut [T]) {
- 		assert_eq!(data.len(), self.width * self.height, "Bad data size.");
- 		self.bind();
- 		gl::GetTexImage(gl::TEXTURE_2D, 0, T::GL_FORMAT, T::GL_TYPE, data.as_ptr() as *mut GLvoid);
- 	}
- 	
- 	unsafe fn get_data_vec<T: Color>(&mut self) -> Vec<T> {
+	unsafe fn get_data<T: Color>(&mut self, data: &mut [T]) {
+		assert_eq!(data.len(), self.width * self.height, "Bad data size.");
+		self.bind();
+		gl::GetTexImage(
+			gl::TEXTURE_2D,
+			0,
+			T::GL_FORMAT,
+			T::GL_TYPE,
+			data.as_ptr() as *mut GLvoid,
+		);
+	}
+
+	unsafe fn get_data_vec<T: Color>(&mut self) -> Vec<T> {
 		let mut data = vec![T::default(); self.width * self.height];
- 		self.get_data(&mut data);
- 		data
- 	}
+		self.get_data(&mut data);
+		data
+	}
 }
 
 impl Drop for Texture {
@@ -811,7 +830,7 @@ pub enum FramebufferAttachment {
 	Color7,
 	Depth,
 	Stencil,
-	DepthStencil
+	DepthStencil,
 }
 
 impl FramebufferAttachment {
@@ -842,24 +861,32 @@ impl Framebuffer {
 	unsafe fn new() -> Self {
 		let mut id: GLuint = 0;
 		gl::GenFramebuffers(1, (&mut id) as *mut GLuint);
-		Self { id, _unused: 0 as _ }
+		Self {
+			id,
+			_unused: 0 as _,
+		}
 	}
-	
+
 	unsafe fn bind(&self) {
 		gl::BindTexture(gl::FRAMEBUFFER, self.id);
 	}
-	
+
 	unsafe fn unbind() {
 		gl::BindTexture(gl::FRAMEBUFFER, 0);
 	}
-	
+
 	unsafe fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
 		self.bind();
 		texture.bind();
-		gl::FramebufferTexture2D(gl::FRAMEBUFFER, attachment.to_gl(), gl::TEXTURE_2D, texture.id, 0);
+		gl::FramebufferTexture2D(
+			gl::FRAMEBUFFER,
+			attachment.to_gl(),
+			gl::TEXTURE_2D,
+			texture.id,
+			0,
+		);
 		Self::unbind();
 	}
-	
 }
 
 impl Drop for Framebuffer {
@@ -935,7 +962,7 @@ impl Window {
 			sdl::set_relative_mouse_mode(relative);
 		}
 	}
-	
+
 	/// new empty shader program
 	pub fn new_program(&mut self) -> Program {
 		unsafe { Program::new() }
@@ -950,7 +977,7 @@ impl Window {
 		let fshader = unsafe { Shader::new(gl::FRAGMENT_SHADER, source_fshader) }?;
 		unsafe { Program::new_with_shaders(&[vshader, fshader]) }
 	}
-	
+
 	pub fn link_program(
 		&mut self,
 		program: &mut Program,
@@ -995,18 +1022,23 @@ impl Window {
 	pub fn array_attrib4f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
 		self.array_attribnf(array, 4, name, offset)
 	}
-	
+
 	pub fn create_framebuffer(&mut self) -> Framebuffer {
 		unsafe { Framebuffer::new() }
 	}
-	
+
 	/// Attach texture to framebuffer.
 	/// In theory this should check that `framebuffer` does not outlive `texture`,
 	/// but that would be difficult to do in a nice way.
-	pub fn set_framebuffer_texture(&mut self, framebuffer: &mut Framebuffer, attachment: FramebufferAttachment, texture: &Texture) {
+	pub fn set_framebuffer_texture(
+		&mut self,
+		framebuffer: &mut Framebuffer,
+		attachment: FramebufferAttachment,
+		texture: &Texture,
+	) {
 		unsafe { framebuffer.set_texture(attachment, texture) };
 	}
-	
+
 	pub fn set_draw_framebuffer(&mut self, framebuffer: Option<&Framebuffer>) {
 		match framebuffer {
 			Some(f) => unsafe { f.bind() },
@@ -1086,19 +1118,19 @@ impl Window {
 		unsafe { texture.set_data(data, width, height) }?;
 		Ok(())
 	}
-	
+
 	/// get texture image
 	///
 	/// panicks if `data.len() != texture.width() * texture.height()`
 	pub fn get_texture_data<T: Color>(&mut self, texture: &mut Texture, data: &mut [T]) {
 		unsafe { texture.get_data(data) };
 	}
-	
+
 	/// get texture image as a newly-allocated `Vec`
 	pub fn get_texture_data_vec<T: Color>(&mut self, texture: &mut Texture) -> Vec<T> {
 		unsafe { texture.get_data_vec() }
 	}
-	
+
 	pub fn set_audio_callback(&mut self, callback: AudioCallback) -> Result<(), String> {
 		if self.audio_data.is_some() {
 			return Err("audio callback already set.".into());

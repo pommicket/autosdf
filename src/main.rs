@@ -77,7 +77,7 @@ impl View {
 	fn yaw_by(&mut self, yaw: f32) {
 		self.rotation *= Rot3::from_euler_angles(0.0, yaw, 0.0);
 	}
-	
+
 	fn pitch_by(&mut self, pitch: f32) {
 		self.rotation *= Rot3::from_euler_angles(pitch, 0.0, 0.0);
 	}
@@ -92,8 +92,11 @@ impl View {
 	}
 }
 
-fn gen_program_from_scene(window: &mut win::Window, program: &mut win::Program, scene: &sdf::Scene) -> Result<(), String> {
-	
+fn gen_program_from_scene(
+	window: &mut win::Window,
+	program: &mut win::Program,
+	scene: &sdf::Scene,
+) -> Result<(), String> {
 	let mut fshader_source = String::new();
 	fshader_source.push_str(
 		"
@@ -130,7 +133,9 @@ float sdf_torus(vec3 p, vec2 t) {
 ",
 	);
 	scene.sdf.to_glsl_function("sdf", &mut fshader_source);
-	scene.color_function.to_glsl_function("get_color_", &mut fshader_source);
+	scene
+		.color_function
+		.to_glsl_function("get_color_", &mut fshader_source);
 	fshader_source.push_str(
 		"
 		
@@ -238,7 +243,8 @@ void main() {
 	println!("scene: {}", scene.export_string());
 
 	window
-		.link_program(program,
+		.link_program(
+			program,
 			"IN vec2 v_pos;
 		OUT vec2 pos;
 		uniform float u_aspect_ratio;
@@ -253,15 +259,19 @@ void main() {
 	Ok(())
 }
 
-fn gen_program_with_seed(window: &mut win::Window, program: &mut win::Program, seed: u64) -> Result<(), String> {
+fn gen_program_with_seed(
+	window: &mut win::Window,
+	program: &mut win::Program,
+	seed: u64,
+) -> Result<(), String> {
 	use rand::SeedableRng;
-	
+
 	let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
 	let my_sdf = sdf::R3ToR::good_random(&mut rng, 6);
 	let color_function = sdf::R3ToR3::good_random(&mut rng, 7);
 	let scene = sdf::Scene {
 		sdf: my_sdf,
-		color_function
+		color_function,
 	};
 	gen_program_from_scene(window, program, &scene)
 }
@@ -272,14 +282,16 @@ fn gen_program(window: &mut win::Window, program: &mut win::Program) -> Result<(
 }
 
 #[allow(dead_code)] // @TODO @TEMPORARY
-fn gen_program_from_string(window: &mut win::Window, program: &mut win::Program, s: &str) -> Result<(), String> {
+fn gen_program_from_string(
+	window: &mut win::Window,
+	program: &mut win::Program,
+	s: &str,
+) -> Result<(), String> {
 	let scene = sdf::Scene::import_string(s).ok_or_else(|| "bad scene string".to_string())?;
 	gen_program_from_scene(window, program, &scene)
 }
 
-
 fn try_main() -> Result<(), String> {
-
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
 		.map_err(|e| format!("Error creating window: {e}"))?;
 	let mut program = window.new_program();
@@ -320,7 +332,7 @@ fn try_main() -> Result<(), String> {
 				KeyDown(R) => {
 					gen_program(&mut window, &mut program)?;
 					view.level_set = 0.0;
-				},
+				}
 				KeyDown(N0) => view.level_set = 0.0,
 				MouseMotion { xrel, yrel, .. } => {
 					let mouse_sensitivity = 0.05;
@@ -364,7 +376,7 @@ fn try_main() -> Result<(), String> {
 			}
 			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
 			speed_multiplier *= if window.is_ctrl_down() { 0.1 } else { 1.0 };
-			
+
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
 				let move_speed = 4.0 * speed_multiplier;

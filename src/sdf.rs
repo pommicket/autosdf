@@ -1,13 +1,13 @@
-extern crate serde_cbor;
-extern crate serde;
 extern crate gen_random_proc_macro;
 extern crate rand;
+extern crate serde;
+extern crate serde_cbor;
 
 use gen_random::GenRandom;
 use gen_random_proc_macro::GenRandom;
-use std::fmt::{self, Display, Formatter, Write};
 use rand::Rng;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
+use std::fmt::{self, Display, Formatter, Write};
 
 // we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
@@ -21,12 +21,12 @@ pub enum Constant {
 	F32(f32),
 	#[prob(0)]
 	Time(
-	#[scale(0.2)]
-	#[bias(-0.1)]
-	f32, f32),
+		#[scale(0.2)]
+		#[bias(-0.1)]
+		f32,
+		f32,
+	),
 }
-
-
 
 impl From<f32> for Constant {
 	fn from(x: f32) -> Self {
@@ -120,7 +120,7 @@ pub enum R3ToR3 {
 	SqSin(Constant), // based on 1/x² sin(x²)
 	#[prob(2)]
 	#[bias(0.01)]
-	Sigmoid //based on sigmoid(x) = 1 / (1 + e^-x)
+	Sigmoid, //based on sigmoid(x) = 1 / (1 + e^-x)
 }
 
 // note : i dont think R → R transformations really accomplish that much
@@ -146,14 +146,14 @@ pub enum R3ToR {
 		#[scale(3.0)]
 		size: Constant,
 		#[scale(0.2)]
-		thickness: Constant
+		thickness: Constant,
 	},
 	#[prob(1)]
-	Torus { 
+	Torus {
 		#[scale(3.0)]
 		radius: Constant,
 		#[scale(0.2)]
-		thickness: Constant
+		thickness: Constant,
 	},
 	#[prob(8)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
@@ -260,7 +260,7 @@ trait Function: Sized + GenRandom {
 	fn input_type() -> GLSLType;
 	/// GLSL type which is the output of this function
 	fn output_type() -> GLSLType;
-		
+
 	/// adds GLSL code for function to `code`.
 	fn to_glsl_function(&self, name: &str, code: &mut String) {
 		let mut var = VarCounter::new();
@@ -272,11 +272,9 @@ trait Function: Sized + GenRandom {
 			Self::input_type()
 		);
 		let output = self.to_glsl(input, code, &mut var);
-		write_str!(
-			code,
-			"return {output};\n}}\n\n");
+		write_str!(code, "return {output};\n}}\n\n");
 	}
-	
+
 	fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
 		// to make sure the function isn't too boring or too slow,
 		// we'll generate a bunch then take the one with the median code length.
@@ -287,24 +285,26 @@ trait Function: Sized + GenRandom {
 			let mut var = VarCounter::new();
 			let _ = f.to_glsl(var.next(), &mut code, &mut var);
 			let len = code.len();
-			
+
 			functions.push((len, f));
 		}
 		functions.sort_by_key(|x| x.0);
 		functions.remove(functions.len() / 2).1
 	}
-	
+
 	fn good_thread_random(max_depth: isize) -> Self {
 		Self::good_random(&mut rand::thread_rng(), max_depth)
 	}
 }
 
-
-
 impl Function for RToR {
-	fn input_type() -> GLSLType { GLSLType::Float }
-	fn output_type() -> GLSLType { GLSLType::Float }
-	
+	fn input_type() -> GLSLType {
+		GLSLType::Float
+	}
+	fn output_type() -> GLSLType {
+		GLSLType::Float
+	}
+
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use RToR::*;
 
@@ -324,9 +324,13 @@ impl Function for RToR {
 }
 
 impl Function for R3ToR3 {
-	fn input_type() -> GLSLType { GLSLType::Vec3 }
-	fn output_type() -> GLSLType { GLSLType::Vec3 }
-	
+	fn input_type() -> GLSLType {
+		GLSLType::Vec3
+	}
+	fn output_type() -> GLSLType {
+		GLSLType::Vec3
+	}
+
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR3::*;
 
@@ -367,7 +371,7 @@ impl Function for R3ToR3 {
 				// we need to scale arctan(cx) so it doesn't break the SDF
 				write_str!(code, "vec3 {output} = (1.0 / {c}) * atan({c} * {input});\n");
 				output
-			},
+			}
 			Rotate(by) => {
 				// by = euler angles
 				// see https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
@@ -379,11 +383,14 @@ impl Function for R3ToR3 {
 				let output = var.next();
 				write_str!(code, "vec3 {c} = cos({by});\n");
 				write_str!(code, "vec3 {s} = sin({by});\n");
-				write_str!(code, "mat3 {m} = mat3(
+				write_str!(
+					code,
+					"mat3 {m} = mat3(
 {c}.y*{c}.z, {s}.x*{s}.y*{c}.z - {c}.x*{s}.z, {c}.x*{s}.y*{c}.z + {s}.x*{s}.z,
 {c}.y*{s}.z, {s}.x*{s}.y*{s}.z + {c}.x*{c}.z, {c}.x*{s}.y*{s}.z - {s}.x*{c}.z,
 -{s}.y,    {s}.x*{c}.y,               {c}.x*{c}.y
-);\n");
+);\n"
+				);
 				write_str!(code, "vec3 {output} = {m} * {input};\n");
 				output
 			}
@@ -392,12 +399,18 @@ impl Function for R3ToR3 {
 				let a = var.next();
 				write_str!(code, "vec3 {a} = 0.1 + abs({input});\n");
 				write_str!(code, "{a} *= {a};\n");
-				write_str!(code, "vec3 {output} = 0.7593/(pow({c},1.5)*{a}) * sin({c}*{a});\n");
+				write_str!(
+					code,
+					"vec3 {output} = 0.7593/(pow({c},1.5)*{a}) * sin({c}*{a});\n"
+				);
 				output
 			}
 			Sigmoid => {
 				let output = var.next();
-				write_str!(code, "vec3 {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n");
+				write_str!(
+					code,
+					"vec3 {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n"
+				);
 				output
 			}
 		}
@@ -405,9 +418,13 @@ impl Function for R3ToR3 {
 }
 
 impl Function for R3ToR {
-	fn input_type() -> GLSLType { GLSLType::Vec3 }
-	fn output_type() -> GLSLType { GLSLType::Float }
-	
+	fn input_type() -> GLSLType {
+		GLSLType::Vec3
+	}
+	fn output_type() -> GLSLType {
+		GLSLType::Float
+	}
+
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR::*;
 		match self {
@@ -430,12 +447,18 @@ impl Function for R3ToR {
 			}
 			BoxFrame { size, thickness } => {
 				let output = var.next();
-				write_str!(code, "float {output} = sdf_box_frame({input}, vec3({size}), {thickness});\n");
+				write_str!(
+					code,
+					"float {output} = sdf_box_frame({input}, vec3({size}), {thickness});\n"
+				);
 				output
 			}
 			Torus { radius, thickness } => {
 				let output = var.next();
-				write_str!(code, "float {output} = sdf_torus({input}, vec2({radius}, {thickness}));\n");
+				write_str!(
+					code,
+					"float {output} = sdf_torus({input}, vec2({radius}, {thickness}));\n"
+				);
 				output
 			}
 			Mix(a, b, t) => {
@@ -492,12 +515,12 @@ fn encode_hex(data: &[u8]) -> String {
 fn decode_hex(data: &str) -> Option<Vec<u8>> {
 	let data = data.trim();
 	if data.len() % 2 != 0 {
-		return None
+		return None;
 	}
-	
+
 	let mut bytes = Vec::with_capacity(data.len() / 2);
 	for i in 0..data.len() / 2 {
-		let s = data.get(2*i..2*i+2)?;
+		let s = data.get(2 * i..2 * i + 2)?;
 		let byte = u8::from_str_radix(s, 16).ok()?;
 		bytes.push(byte);
 	}
@@ -508,11 +531,11 @@ impl R3ToR {
 	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
 		<Self as Function>::good_random(rng, max_depth)
 	}
-	
+
 	pub fn good_thread_random(max_depth: isize) -> Self {
 		<Self as Function>::good_thread_random(max_depth)
 	}
-	
+
 	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
 		<Self as Function>::to_glsl_function(self, name, code);
 	}
@@ -522,11 +545,11 @@ impl R3ToR3 {
 	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
 		<Self as Function>::good_random(rng, max_depth)
 	}
-	
+
 	pub fn good_thread_random(max_depth: isize) -> Self {
 		<Self as Function>::good_thread_random(max_depth)
 	}
-	
+
 	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
 		<Self as Function>::to_glsl_function(self, name, code);
 	}
@@ -535,7 +558,7 @@ impl R3ToR3 {
 #[derive(Serialize, Deserialize)]
 pub struct Scene {
 	pub sdf: R3ToR,
-	pub color_function: R3ToR3
+	pub color_function: R3ToR3,
 }
 
 impl Scene {
@@ -546,12 +569,10 @@ impl Scene {
 		let _ = serde_cbor::to_writer(&mut data, self);
 		encode_hex(&data)
 	}
-	
+
 	/// returns None if `s` is not a valid SDF string
 	pub fn import_string(s: &str) -> Option<Self> {
 		let bytes = decode_hex(s)?;
 		serde_cbor::from_reader(&bytes[..]).ok()?
 	}
 }
-
-
