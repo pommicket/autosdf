@@ -1,7 +1,7 @@
 // all OpenGL calls are done through the Window.
 // this is because OpenGL is not thread safe.
 use crate::sdl;
-use gl::types::{GLchar, GLenum, GLint, GLsizei, GLuint};
+use gl::types::{GLchar, GLenum, GLint, GLsizei, GLuint, GLvoid};
 use mem::size_of;
 #[allow(unused_imports)]
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr, CString};
@@ -292,7 +292,20 @@ pub fn display_error_message(message: &str) {
 	}
 }
 
-#[derive(Clone, Copy)]
+/// `Color` trait for dealing with opengl
+///
+/// this trait is unsafe because putting the wrong value for the constants may
+/// result in bad memory reads/writes.
+///
+/// ideally we'd have `GL_INTERNAL_FORMAT` as well, but `glGetTexImage` doesn't have it,
+/// so best not to.
+pub unsafe trait Color: Default + Copy {
+	const GL_FORMAT: GLenum;
+	const GL_TYPE: GLenum;
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct ColorF32 {
 	pub r: f32,
 	pub g: f32,
@@ -300,7 +313,8 @@ pub struct ColorF32 {
 	pub a: f32,
 }
 
-#[derive(Clone, Copy)]
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct ColorU8 {
 	pub r: u8,
 	pub g: u8,
@@ -322,6 +336,11 @@ impl fmt::Debug for ColorU8 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", self)
 	}
+}
+
+unsafe impl Color for ColorU8 {
+	const GL_FORMAT: GLenum = gl::RGBA;
+	const GL_TYPE: GLenum = gl::UNSIGNED_BYTE;
 }
 
 impl ColorU8 {
@@ -384,6 +403,11 @@ impl ColorF32 {
 	pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
 		ColorF32 { r, g, b, a }
 	}
+}
+
+unsafe impl Color for ColorF32 {
+	const GL_FORMAT: GLenum = gl::RGBA;
+	const GL_TYPE: GLenum = gl::FLOAT;
 }
 
 pub struct Shader {
@@ -653,6 +677,8 @@ extern "system" fn gl_message_callback(
 pub struct Texture {
 	id: GLuint,
 	params: TextureParams,
+	width: usize,
+	height: usize,
 	/// textures should not be sent across threads because of the drop function.
 	_unused: NoSendSync,
 }
@@ -664,6 +690,8 @@ impl Texture {
 		Self {
 			id,
 			params: params.clone(),
+			width: 0,
+			height: 0,
 			_unused: 0 as _,
 		}
 	}
@@ -672,10 +700,12 @@ impl Texture {
 		gl::BindTexture(gl::TEXTURE_2D, self.id);
 	}
 	
-	unsafe fn set_data(&mut self, data: &[u8], width: usize, height: usize) -> Result<(), String> {
-		let width = width as GLsizei;
-		let height = height as GLsizei;
-		let expected_len = 4 * width * height;
+	unsafe fn set_data<T: Color>(&mut self, data: &[T], width: usize, height: usize) -> Result<(), String> {
+		self.width = width;
+		self.height = height;
+		let width: GLsizei = width.try_into().map_err(|_| "width too large")?;
+		let height: GLsizei = height.try_into().map_err(|_| "height too large")?;
+		let expected_len = width * height;
 		if data.len() as GLsizei != expected_len {
 			return Err(format!(
 				"bad data length (expected {}, got {})",
@@ -688,12 +718,12 @@ impl Texture {
 		gl::TexImage2D(
 			gl::TEXTURE_2D,
 			0,
-			gl::RGBA as _,
+			T::GL_FORMAT as GLint,
 			width,
 			height,
 			0,
-			gl::RGBA,
-			gl::UNSIGNED_BYTE,
+			T::GL_FORMAT,
+			T::GL_TYPE,
 			data.as_ptr() as _,
 		);
 		gl::TexParameteri(
@@ -708,6 +738,27 @@ impl Texture {
 		);
 		Ok(())
 	}
+	
+	pub fn width(&self) -> usize {
+		self.width
+	}
+	
+	pub fn height(&self) -> usize {
+		self.height
+	}
+	
+	/// panicks if `data` is the wrong length (should be exactly `self.width() * self.height()`).
+ 	unsafe fn get_data<T: Color>(&mut self, data: &mut [T]) {
+ 		assert_eq!(data.len(), self.width * self.height, "Bad data size.");
+ 		self.bind();
+ 		gl::GetTexImage(gl::TEXTURE_2D, 0, T::GL_FORMAT, T::GL_TYPE, data.as_ptr() as *mut GLvoid);
+ 	}
+ 	
+ 	unsafe fn get_data_vec<T: Color>(&mut self) -> Vec<T> {
+		let mut data = vec![T::default(); self.width * self.height];
+ 		self.get_data(&mut data);
+ 		data
+ 	}
 }
 
 impl Drop for Texture {
@@ -798,11 +849,17 @@ impl Framebuffer {
 		gl::BindTexture(gl::FRAMEBUFFER, self.id);
 	}
 	
+	unsafe fn unbind() {
+		gl::BindTexture(gl::FRAMEBUFFER, 0);
+	}
+	
 	unsafe fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
 		self.bind();
 		texture.bind();
 		gl::FramebufferTexture2D(gl::FRAMEBUFFER, attachment.to_gl(), gl::TEXTURE_2D, texture.id, 0);
+		Self::unbind();
 	}
+	
 }
 
 impl Drop for Framebuffer {
@@ -949,6 +1006,13 @@ impl Window {
 	pub fn set_framebuffer_texture(&mut self, framebuffer: &mut Framebuffer, attachment: FramebufferAttachment, texture: &Texture) {
 		unsafe { framebuffer.set_texture(attachment, texture) };
 	}
+	
+	pub fn set_draw_framebuffer(&mut self, framebuffer: Option<&Framebuffer>) {
+		match framebuffer {
+			Some(f) => unsafe { f.bind() },
+			None => unsafe { Framebuffer::unbind() },
+		}
+	}
 
 	pub fn size(&self) -> (i32, i32) {
 		let mut x = 0;
@@ -1015,14 +1079,26 @@ impl Window {
 	pub fn set_texture_data(
 		&mut self,
 		texture: &mut Texture,
-		data: &[u8],
+		data: &[impl Color],
 		width: usize,
 		height: usize,
 	) -> Result<(), String> {
 		unsafe { texture.set_data(data, width, height) }?;
 		Ok(())
 	}
-
+	
+	/// get texture image
+	///
+	/// panicks if `data.len() != texture.width() * texture.height()`
+	pub fn get_texture_data<T: Color>(&mut self, texture: &mut Texture, data: &mut [T]) {
+		unsafe { texture.get_data(data) };
+	}
+	
+	/// get texture image as a newly-allocated `Vec`
+	pub fn get_texture_data_vec<T: Color>(&mut self, texture: &mut Texture) -> Vec<T> {
+		unsafe { texture.get_data_vec() }
+	}
+	
 	pub fn set_audio_callback(&mut self, callback: AudioCallback) -> Result<(), String> {
 		if self.audio_data.is_some() {
 			return Err("audio callback already set.".into());
