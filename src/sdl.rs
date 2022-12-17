@@ -1,6 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
+/// this module provides SDL type definitions, and more rust-y wrappers around
+/// SDL functions.
 
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
 use std::mem;
@@ -699,6 +701,9 @@ extern "C" {
 	) -> SDL_AudioDeviceID;
 	fn SDL_PauseAudioDevice(dev: SDL_AudioDeviceID, pause_on: c_int);
 	fn SDL_CloseAudioDevice(dev: SDL_AudioDeviceID);
+	fn SDL_GetClipboardText() -> *mut c_char;
+	fn SDL_SetClipboardText(text: *const c_char) -> c_int;
+	fn SDL_free(mem: *mut c_void);
 }
 
 pub mod scancode {
@@ -1119,4 +1124,35 @@ pub unsafe fn pause_audio_device(dev: SDL_AudioDeviceID, pause_on: bool) {
 
 pub unsafe fn close_audio_device(dev: SDL_AudioDeviceID) {
 	SDL_CloseAudioDevice(dev);
+}
+
+pub unsafe fn get_clipboard_text() -> Result<String, String> {
+	let ptr = SDL_GetClipboardText();
+	if ptr.is_null() {
+		// according to some sources, SDL_GetClipboardText returns NULL on failure.
+		// according to the wiki, it returns an empty string.
+		return Err(get_err());
+	}
+	
+	let cstr = CStr::from_ptr(ptr);
+	let Ok(r#str) = cstr.to_str() else {
+		// this should never happen since SDL should always give back valid UTF-8.
+		return Err("clipboard doesn't contain UTF-8".to_string());
+	};
+	let string = r#str.to_string();
+	SDL_free(ptr as *mut c_void);
+	Ok(string)
+}
+
+pub unsafe fn set_clipboard_text(s: &str) -> Result<(), String> {
+	let Ok(cstring) = CString::new(s) else {
+		return Err("can't put null bytes in clipboard text.".to_string());
+	};
+	
+	let result = SDL_SetClipboardText(cstring.as_ptr());
+	if result == 0 {
+		Ok(())
+	} else {
+		Err(get_err())
+	}
 }

@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gl = "0.14"
-nalgebra = "0.31"
 gen_random_proc_macro = { path = "./gen_random_proc_macro" }
 gen_random = { path = "./gen_random" }
-rand = { version = "0.8", features = ["small_rng"] }
+rand = { version = "0.8.0", features = ["small_rng"] }
 serde_cbor = "0.11.2"
 serde = "1.0.150"
 serde_derive = "1.0.150"
+gl = "0.14.0"
+nalgebra = "0.31.4"

@@ -1325,6 +1325,14 @@ impl Window {
 	pub fn swap(&mut self) {
 		unsafe { sdl::gl_swap_window(self.sdlwin) };
 	}
+	
+	pub fn get_clipboard_text(&mut self) -> Result<String, String> {
+		unsafe { sdl::get_clipboard_text() }
+	}
+	
+	pub fn set_clipboard_text(&mut self, s: &str) -> Result<(), String> {
+		unsafe { sdl::set_clipboard_text(s) }
+	}
 }
 
 impl Drop for Window {
