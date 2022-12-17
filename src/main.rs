@@ -2,6 +2,8 @@
 @TODO:
 - auto-select level set by sampling a bunch of points
 - bring time back, w pause/rewind/adjust time speed (start out paused?)
+- feedback for copy/paste (flash screen or something)
+- clean up code w a big state object
 - Params instead of depth for GenRandom
    - allow multiple endpoints (cube & sphere & ...)
 - seed control (maybe save seeds to a file then let user go back&forth through past sdfs)
@@ -14,7 +16,8 @@
 	- AA quality
 	- # iterations, distance cutoff
 - documentation
-- GenRandom integers (+ gen_random_scale_bias
+- GenRandom integers (+ gen_random_scale_bias)
+- better SDL api: Context  +  Window<'a> impl !Send+!Sync
 
 -----
 cool seeds:
@@ -259,43 +262,23 @@ void main() {
 	Ok(())
 }
 
-fn gen_program_with_seed(
-	window: &mut win::Window,
-	program: &mut win::Program,
-	seed: u64,
-) -> Result<(), String> {
+fn get_rng() -> impl rand::Rng {
 	use rand::SeedableRng;
-
-	let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
-	let my_sdf = sdf::R3ToR::good_random(&mut rng, 6);
-	let color_function = sdf::R3ToR3::good_random(&mut rng, 7);
-	let scene = sdf::Scene {
-		sdf: my_sdf,
-		color_function,
-	};
-	gen_program_from_scene(window, program, &scene)
-}
-
-fn gen_program(window: &mut win::Window, program: &mut win::Program) -> Result<(), String> {
-	let seed = rand::random::<u64>();
-	gen_program_with_seed(window, program, seed)
-}
-
-#[allow(dead_code)] // @TODO @TEMPORARY
-fn gen_program_from_string(
-	window: &mut win::Window,
-	program: &mut win::Program,
-	s: &str,
-) -> Result<(), String> {
-	let scene = sdf::Scene::import_string(s).ok_or_else(|| "bad scene string".to_string())?;
-	gen_program_from_scene(window, program, &scene)
+	rand::rngs::SmallRng::seed_from_u64(rand::random::<u64>())
 }
 
 fn try_main() -> Result<(), String> {
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
 		.map_err(|e| format!("Error creating window: {e}"))?;
 	let mut program = window.new_program();
-	gen_program_with_seed(&mut window, &mut program, 1)?;
+	let config = sdf::SceneConfig {
+		sdf_max_depth: 7,
+		color_max_depth: 6,
+	};
+	let mut scene = sdf::Scene::good_random(&mut get_rng(), &config);
+	gen_program_from_scene(&mut window, &mut program, &scene).unwrap_or_else(|e|
+		eprintln!("Error: {e}")
+	);
 	//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
 
 	let mut buffer = window.create_buffer();
@@ -327,13 +310,57 @@ fn try_main() -> Result<(), String> {
 			use win::Event::*;
 			use win::Key::*;
 			match event {
-				Quit | KeyDown(Escape) => break 'mainloop,
-				KeyDown(F1) => show_debug_info = !show_debug_info,
-				KeyDown(R) => {
-					gen_program(&mut window, &mut program)?;
-					view.level_set = 0.0;
+				Quit | KeyDown { key: Escape, .. } => break 'mainloop,
+				KeyDown { key: F1, .. } => show_debug_info = !show_debug_info,
+				KeyDown { key: R, .. } => {
+					scene = sdf::Scene::good_random(&mut get_rng(), &config);
+					match gen_program_from_scene(&mut window, &mut program, &scene) {
+						Ok(()) => {
+							view.level_set = 0.0;
+						}
+						Err(e) => {
+							eprintln!("Error: {e}")
+						}
+					};
 				}
-				KeyDown(N0) => view.level_set = 0.0,
+				KeyDown { key: C, modifier, .. } if modifier.ctrl() => {
+					// copy scene
+					match window.set_clipboard_text(&scene.export_string()) {
+						Ok(()) => {
+						}
+						Err(e) => {
+							eprintln!("couldn't copy text to clipboard: {e}")
+						}
+					}
+				}
+				KeyDown { key: V, modifier, .. } if modifier.ctrl() => {
+					// paste scene
+					match window.get_clipboard_text() {
+						Ok(s) => {
+							match sdf::Scene::import_string(&s) {
+								Some(new_scene) => {
+									scene = new_scene;
+									match gen_program_from_scene(&mut window, &mut program, &scene) {
+										Ok(()) => {
+											view.level_set = 0.0;
+										}
+										Err(e) => {
+											eprintln!("Error: {e}")
+										}
+									}
+								}
+								None => {
+									eprintln!("bad string")
+								}
+							}
+						}
+						Err(e) => {
+							// very unlikely to happen
+							eprintln!("couldn't get clipboard text: {e}")
+						}
+					}
+				}
+				KeyDown { key: N0, .. } => view.level_set = 0.0,
 				MouseMotion { xrel, yrel, .. } => {
 					let mouse_sensitivity = 0.05;
 					view.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);

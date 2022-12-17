@@ -270,11 +270,91 @@ impl Key {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeyModifier {
+	lctrl: bool,
+	lshift: bool,
+	lalt: bool,
+	lgui: bool,
+	rctrl: bool,
+	rshift: bool,
+	ralt: bool,
+	rgui: bool,
+	numlock: bool,
+	capslock: bool,
+}
+
+impl KeyModifier {
+	pub fn lctrl(&self) -> bool {
+		self.lctrl
+	}
+	pub fn rctrl(&self) -> bool {
+		self.rctrl
+	}
+	pub fn lshift(&self) -> bool {
+		self.lshift
+	}
+	pub fn rshift(&self) -> bool {
+		self.rshift
+	}
+	pub fn lalt(&self) -> bool {
+		self.lalt
+	}
+	pub fn ralt(&self) -> bool {
+		self.ralt
+	}
+	pub fn lgui(&self) -> bool {
+		self.lgui
+	}
+	pub fn rgui(&self) -> bool {
+		self.rgui
+	}
+	pub fn ctrl(&self) -> bool {
+		self.lctrl || self.rctrl
+	}
+	pub fn shift(&self) -> bool {
+		self.lshift || self.rshift
+	}
+	pub fn alt(&self) -> bool {
+		self.lalt || self.ralt
+	}
+	pub fn gui(&self) -> bool {
+		self.lgui || self.rgui
+	}
+	pub fn capslock(&self) -> bool {
+		self.capslock
+	}
+	pub fn numlock(&self) -> bool {
+		self.numlock
+	}
+	
+	fn from_sdl(keymod: u16) -> Self {
+		Self {
+			lctrl: (keymod & sdl::KMOD_LCTRL) != 0,
+			rctrl: (keymod & sdl::KMOD_RCTRL) != 0,
+			lshift: (keymod & sdl::KMOD_LSHIFT) != 0,
+			rshift: (keymod & sdl::KMOD_RSHIFT) != 0,
+			lalt: (keymod & sdl::KMOD_LALT) != 0,
+			ralt: (keymod & sdl::KMOD_RALT) != 0,
+			lgui: (keymod & sdl::KMOD_LGUI) != 0,
+			rgui: (keymod & sdl::KMOD_RGUI) != 0,
+			capslock: (keymod & sdl::KMOD_CAPS) != 0,
+			numlock: (keymod & sdl::KMOD_NUM) != 0,
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
 pub enum Event {
 	Quit,
-	KeyDown(Key),
-	KeyUp(Key),
+	KeyDown {
+		key: Key,
+		modifier: KeyModifier
+	},
+	KeyUp {
+		key: Key,
+		modifier: KeyModifier
+	},
 	MouseMotion {
 		x: i32,
 		y: i32,
@@ -1074,12 +1154,14 @@ impl Window {
 			match r#type {
 				sdl::SDL_QUIT => return Some(Event::Quit),
 				sdl::SDL_KEYDOWN | sdl::SDL_KEYUP => {
-					let scancode = unsafe { sdl.key }.keysym.scancode;
-					if let Some(k) = Key::from_sdl(scancode) {
+					let keysym = unsafe { sdl.key }.keysym;
+					let scancode = keysym.scancode;
+					if let Some(key) = Key::from_sdl(scancode) {
+						let modifier = KeyModifier::from_sdl(keysym.r#mod);
 						if r#type == sdl::SDL_KEYDOWN {
-							return Some(Event::KeyDown(k));
+							return Some(Event::KeyDown { key, modifier });
 						} else {
-							return Some(Event::KeyUp(k));
+							return Some(Event::KeyUp { key, modifier });
 						}
 					}
 				}

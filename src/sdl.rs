@@ -220,6 +220,18 @@ pub const AUDIO_F32LSB: u16 = 0x8120;
 pub const AUDIO_F32MSB: u16 = 0x9120;
 pub const AUDIO_F32: u16 = AUDIO_F32LSB;
 
+pub const KMOD_NONE: u16 = 0x0000;
+pub const KMOD_LSHIFT: u16 = 0x0001;
+pub const KMOD_RSHIFT: u16 = 0x0002;
+pub const KMOD_LCTRL: u16 = 0x0040;
+pub const KMOD_RCTRL: u16 = 0x0080;
+pub const KMOD_LALT: u16 = 0x0100;
+pub const KMOD_RALT: u16 = 0x0200;
+pub const KMOD_LGUI: u16 = 0x0400;
+pub const KMOD_RGUI: u16 = 0x0800;
+pub const KMOD_NUM: u16 = 0x1000;
+pub const KMOD_CAPS: u16 = 0x2000;
+
 // NOTE: ideally we wouldn't need Copy on all of these
 // but otherwise we wouldn't be able to put them in a union
 
