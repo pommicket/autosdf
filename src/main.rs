@@ -99,40 +99,70 @@ impl View {
 	}
 }
 
-fn gen_program_from_scene(
-	window: &mut win::Window,
-	program: &mut win::Program,
-	scene: &sdf::Scene,
-) -> Result<(), String> {
-	let fshader_source = include_str!("fshader_main.glsl");
-	let mut sdf = String::new();
-	let mut get_color = String::new();
-	scene.sdf.to_glsl_function("sdf", &mut sdf);
-	scene
-		.color_function
-		.to_glsl_function("get_color_", &mut get_color);
-	let fshader_source = fshader_source.replace("%SDF%", &sdf)
-		.replace("%COLOR%", &get_color);
-	
-	//println!("{fshader_source}");
-	println!("scene: {}", scene.export_string());
-
-	window
-		.link_program(
-			program,
-			"IN vec2 v_pos;
-		OUT vec2 pos;
-		uniform float u_aspect_ratio;
-		
-		void main() {
-			pos = v_pos * vec2(u_aspect_ratio, 1.0);
-			gl_Position = vec4(v_pos, 0.0, 1.0);
-		}",
-			&fshader_source,
-		)
-		.map_err(|e| format!("Error compiling shader:\n{e}"))?;
-	Ok(())
+struct Programs {
+	main: win::Program,
+	test: win::Program
 }
+
+impl Programs {
+	fn new(window: &mut win::Window) -> Self {
+		Programs {
+			main: window.new_program(),
+			test: window.new_program(),
+		}
+	}
+	
+	fn load_scene(&mut self, window: &mut win::Window, scene: &sdf::Scene) -> Result<(), String> {
+		let source_main = include_str!("fshader_main.glsl");
+		let source_test = include_str!("fshader_test.glsl");
+		let source_common = include_str!("fshader_common.glsl");
+		
+		let mut sdf = String::new();
+		let mut get_color = String::new();
+		scene.sdf.to_glsl_function("sdf", &mut sdf);
+		scene
+			.color_function
+			.to_glsl_function("get_color_", &mut get_color);
+		let source_main = source_main.replace("%SDF%", &sdf)
+			.replace("%COLOR%", &get_color)
+			.replace("%COMMON%", source_common);
+		let source_test = source_test.replace("%SDF%", &sdf)
+			.replace("%COMMON%", source_common);
+		
+		//println!("{fshader_source}");
+		println!("scene: {}", scene.export_string());
+	
+		window
+			.link_program(
+				&mut self.main,
+				"IN vec2 v_pos;
+			OUT vec2 pos;
+			uniform float u_aspect_ratio;
+			
+			void main() {
+				pos = v_pos * vec2(u_aspect_ratio, 1.0);
+				gl_Position = vec4(v_pos, 0.0, 1.0);
+			}",
+				&source_main,
+			)
+			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
+		window
+			.link_program(
+				&mut self.test,
+				"IN vec2 v_pos;
+			OUT vec2 pos;
+			
+			void main() {
+				pos = v_pos;
+				gl_Position = vec4(v_pos, 0.0, 1.0);
+			}",
+				&source_test,
+			)
+			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
+		Ok(())
+	}
+}
+
 
 fn get_rng() -> impl rand::Rng {
 	use rand::SeedableRng;
@@ -142,13 +172,13 @@ fn get_rng() -> impl rand::Rng {
 fn try_main() -> Result<(), String> {
 	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
 		.map_err(|e| format!("Error creating window: {e}"))?;
-	let mut program = window.new_program();
+	let mut programs = Programs::new(&mut window);
 	let config = sdf::SceneConfig {
 		sdf_max_depth: 7,
 		color_max_depth: 6,
 	};
 	let mut scene = sdf::Scene::good_random(&mut get_rng(), &config);
-	gen_program_from_scene(&mut window, &mut program, &scene).unwrap_or_else(|e|
+	programs.load_scene(&mut window, &scene).unwrap_or_else(|e|
 		eprintln!("Error: {e}")
 	);
 	//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
@@ -163,7 +193,7 @@ fn try_main() -> Result<(), String> {
 		[-1.0, 1.0],
 	];
 	window.set_buffer_data(&mut buffer, data);
-	let mut array = window.create_vertex_array(buffer, &program);
+	let mut array = window.create_vertex_array(buffer, &programs.main);
 	window.array_attrib2f(&mut array, "v_pos", 0);
 
 	let mut view = View::default();
@@ -186,7 +216,7 @@ fn try_main() -> Result<(), String> {
 				KeyDown { key: F1, .. } => show_debug_info = !show_debug_info,
 				KeyDown { key: R, .. } => {
 					scene = sdf::Scene::good_random(&mut get_rng(), &config);
-					match gen_program_from_scene(&mut window, &mut program, &scene) {
+					match programs.load_scene(&mut window, &scene) {
 						Ok(()) => {
 							view.level_set = 0.0;
 						}
@@ -212,7 +242,7 @@ fn try_main() -> Result<(), String> {
 							match sdf::Scene::import_string(&s) {
 								Some(new_scene) => {
 									scene = new_scene;
-									match gen_program_from_scene(&mut window, &mut program, &scene) {
+									match programs.load_scene(&mut window, &scene) {
 										Ok(()) => {
 											view.level_set = 0.0;
 										}
@@ -291,7 +321,7 @@ fn try_main() -> Result<(), String> {
 		window.viewport_full_screen();
 
 		window.clear_screen(win::ColorF32::BLACK);
-		window.use_program(&program);
+		window.use_program(&programs.main);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
 		window.uniform1f("u_time", total_time);
 		window.uniform1f("u_fov", std::f32::consts::PI * 0.25);
