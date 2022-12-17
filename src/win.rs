@@ -404,9 +404,7 @@ impl Shader {
 
 	unsafe fn new_with_id(id: GLuint, r#type: GLenum, source: &str) -> Result<Self, String> {
 		if id == 0 {
-			return Err(format!("couldn't create shader (GL error {})", unsafe {
-				gl::GetError()
-			}));
+			return Err(format!("couldn't create shader (GL error {})", gl::GetError()));
 		}
 
 		{

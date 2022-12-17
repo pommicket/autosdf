@@ -75,11 +75,11 @@ impl View {
 	}
 
 	fn yaw_by(&mut self, yaw: f32) {
-		self.rotation = self.rotation * Rot3::from_euler_angles(0.0, yaw, 0.0);
+		self.rotation *= Rot3::from_euler_angles(0.0, yaw, 0.0);
 	}
 	
 	fn pitch_by(&mut self, pitch: f32) {
-		self.rotation = self.rotation * Rot3::from_euler_angles(pitch, 0.0, 0.0);
+		self.rotation *= Rot3::from_euler_angles(pitch, 0.0, 0.0);
 	}
 
 	fn translation(&self) -> Mat4 {
@@ -235,7 +235,7 @@ void main() {
 	);
 
 	//println!("{fshader_source}");
-	println!("scene: {}", scene.to_string());
+	println!("scene: {}", scene.export_string());
 
 	window
 		.link_program(program,
@@ -273,7 +273,7 @@ fn gen_program(window: &mut win::Window, program: &mut win::Program) -> Result<(
 
 #[allow(dead_code)] // @TODO @TEMPORARY
 fn gen_program_from_string(window: &mut win::Window, program: &mut win::Program, s: &str) -> Result<(), String> {
-	let scene = sdf::Scene::from_string(s).ok_or_else(|| "bad scene string".to_string())?;
+	let scene = sdf::Scene::import_string(s).ok_or_else(|| "bad scene string".to_string())?;
 	gen_program_from_scene(window, program, &scene)
 }
 

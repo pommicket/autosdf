@@ -539,7 +539,7 @@ pub struct Scene {
 }
 
 impl Scene {
-	pub fn to_string(&self) -> String {
+	pub fn export_string(&self) -> String {
 		let mut data: Vec<u8> = vec![];
 		// write errors should never happen
 		// that said, we don't want to panic if for whatever reason this fails.
@@ -548,7 +548,7 @@ impl Scene {
 	}
 	
 	/// returns None if `s` is not a valid SDF string
-	pub fn from_string(s: &str) -> Option<Self> {
+	pub fn import_string(s: &str) -> Option<Self> {
 		let bytes = decode_hex(s)?;
 		serde_cbor::from_reader(&bytes[..]).ok()?
 	}
