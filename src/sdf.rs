@@ -554,6 +554,16 @@ pub struct Scene {
 	pub color_function: R3ToR3,
 }
 
+impl Default for Scene {
+	/// a sphere. pretty boring
+	fn default() -> Self {
+		Self {
+			sdf: R3ToR::Sphere(Constant::F32(1.0)),
+			color_function: R3ToR3::Identity,
+		}
+	}
+}
+
 impl Scene {
 	pub fn export_string(&self) -> String {
 		let mut data: Vec<u8> = vec![];

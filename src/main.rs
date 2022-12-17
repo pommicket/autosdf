@@ -48,6 +48,7 @@ pub mod sdf;
 mod sdl;
 pub mod win;
 
+use win::ColorF32;
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use std::time::Instant;
 
@@ -185,11 +186,11 @@ struct State {
 	framebuffer_texture: win::Texture,
 	framebuffer: win::Framebuffer,
 	main_array: win::VertexArray,
+	test_array: win::VertexArray,
 }
 
 impl State {
 	fn new() -> Result<Self, String> {
-	
 		let mut window = win::Window::new("AutoSDF", 1280, 720, true)
 			.map_err(|e| format!("Error creating window: {e}"))?;
 		let mut programs = Programs::new(&mut window);
@@ -205,7 +206,7 @@ impl State {
 	
 		let mut framebuffer_texture = window.create_texture(&Default::default());
 		// we don't really care if there's an error. not much bad will happen.
-		let _ = window.set_texture_no_data::<win::ColorU8>(&mut framebuffer_texture, TEST_WIDTH.into(), TEST_HEIGHT.into());
+		let _ = window.set_texture_no_data::<win::ColorF32>(&mut framebuffer_texture, TEST_WIDTH.into(), TEST_HEIGHT.into());
 		
 		let mut framebuffer = window.create_framebuffer();
 		window.set_framebuffer_texture(
@@ -215,6 +216,7 @@ impl State {
 		);
 			
 		let mut main_buffer = window.create_buffer();
+		let mut test_buffer = window.create_buffer();
 		let data: &[[f32; 2]] = &[
 			[-1.0, -1.0],
 			[1.0, -1.0],
@@ -224,13 +226,14 @@ impl State {
 			[-1.0, 1.0],
 		];
 		window.set_buffer_data(&mut main_buffer, data);
-		let mut main_array = window.create_vertex_array(main_buffer, &programs.main);
-		window.array_attrib2f(&mut main_array, "v_pos", 0);
+		window.set_buffer_data(&mut test_buffer, data);
+		let main_array = window.create_vertex_array(main_buffer, &programs.main);
+		let test_array = window.create_vertex_array(test_buffer, &programs.test);
 		let view = View::default();
 	
 		window.set_mouse_relative(true);
 		
-		Ok(Self {
+		let mut me = Self {
 			window,
 			programs,
 			view,
@@ -238,18 +241,44 @@ impl State {
 			frame_time: Instant::now(),
 			show_debug_info: false,
 			total_time: 0.0,
-			scene,
+			scene: sdf::Scene::default(),
 			framebuffer_texture,
 			framebuffer,
 			main_array,
-		})
+			test_array,
+		};
+		me.load_scene(scene);
+		Ok(me)
 	}
 	
 	fn load_scene(&mut self, scene: sdf::Scene) {
 		match self.programs.load_scene(&mut self.window, &scene) {
 			Ok(()) => {
 				self.scene = scene;
-				self.view.level_set = 0.0;
+				// *technically speaking* the location of v_pos could change between reloads
+				self.window.array_attrib2f(&mut self.main_array, "v_pos", 0);
+				self.window.array_attrib2f(&mut self.test_array, "v_pos", 0);
+				
+				// determine default level set
+				// specifically we want to select y such that
+				//   for ~1/4 of p values, sdf(p) < y
+				self.window.bind_framebuffer(Some(&self.framebuffer));
+				self.window.viewport(0, 0, TEST_WIDTH.into(), TEST_HEIGHT.into());
+				
+				self.window.draw_array(&self.test_array);
+				
+				self.window.viewport_full_screen();
+				self.window.bind_framebuffer(None);
+				
+				let mut sdf_values: Vec<f32> = self.window.get_texture_data_vec::<ColorF32>(
+					&self.framebuffer_texture
+					).iter()
+					.map(|c| c.r)
+					.collect();
+				let i = sdf_values.len() / 4;
+				let level_set = *sdf_values.select_nth_unstable_by(i,
+					|a, b| a.total_cmp(b)).1;
+				self.view.level_set = level_set;
 			}
 			Err(e) => {
 				eprintln!("Error: {e}")

@@ -850,7 +850,7 @@ impl Texture {
 	}
 
 	/// panicks if `data` is the wrong length (should be exactly `self.width() * self.height()`).
-	unsafe fn get_data<T: Color>(&mut self, data: &mut [T]) {
+	unsafe fn get_data<T: Color>(&self, data: &mut [T]) {
 		assert_eq!(data.len(), self.width * self.height, "Bad data size.");
 		self.bind();
 		gl::GetTexImage(
@@ -862,7 +862,7 @@ impl Texture {
 		);
 	}
 
-	unsafe fn get_data_vec<T: Color>(&mut self) -> Vec<T> {
+	unsafe fn get_data_vec<T: Color>(&self) -> Vec<T> {
 		let mut data = vec![T::default(); self.width * self.height];
 		self.get_data(&mut data);
 		data
@@ -1140,7 +1140,7 @@ impl Window {
 		unsafe { framebuffer.set_texture(attachment, texture) };
 	}
 
-	pub fn set_draw_framebuffer(&mut self, framebuffer: Option<&Framebuffer>) {
+	pub fn bind_framebuffer(&mut self, framebuffer: Option<&Framebuffer>) {
 		match framebuffer {
 			Some(f) => unsafe { f.bind() },
 			None => unsafe { Framebuffer::unbind() },
@@ -1239,12 +1239,12 @@ impl Window {
 	/// get texture image
 	///
 	/// panicks if `data.len() != texture.width() * texture.height()`
-	pub fn get_texture_data<T: Color>(&mut self, texture: &mut Texture, data: &mut [T]) {
+	pub fn get_texture_data<T: Color>(&mut self, texture: &Texture, data: &mut [T]) {
 		unsafe { texture.get_data(data) };
 	}
 
 	/// get texture image as a newly-allocated `Vec`
-	pub fn get_texture_data_vec<T: Color>(&mut self, texture: &mut Texture) -> Vec<T> {
+	pub fn get_texture_data_vec<T: Color>(&mut self, texture: &Texture) -> Vec<T> {
 		unsafe { texture.get_data_vec() }
 	}
 
