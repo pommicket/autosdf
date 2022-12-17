@@ -790,7 +790,7 @@ impl Texture {
 
 	unsafe fn set_data<T: Color>(
 		&mut self,
-		data: &[T],
+		data: Option<&[T]>,
 		width: usize,
 		height: usize,
 	) -> Result<(), String> {
@@ -799,13 +799,22 @@ impl Texture {
 		let width: GLsizei = width.try_into().map_err(|_| "width too large")?;
 		let height: GLsizei = height.try_into().map_err(|_| "height too large")?;
 		let expected_len = width * height;
-		if data.len() as GLsizei != expected_len {
-			return Err(format!(
-				"bad data length (expected {}, got {})",
-				expected_len,
-				data.len()
-			));
-		}
+		
+		
+		let ptr = match data {
+			Some(data) => {
+				if data.len() as GLsizei != expected_len {
+					return Err(format!(
+						"bad data length (expected {}, got {})",
+						expected_len,
+						data.len()
+					));
+				}
+				data.as_ptr()
+			},
+			None => std::ptr::null()
+		};
+		
 		let params = &self.params;
 		self.bind();
 		gl::TexImage2D(
@@ -817,7 +826,7 @@ impl Texture {
 			0,
 			T::GL_FORMAT,
 			T::GL_TYPE,
-			data.as_ptr() as _,
+			ptr.cast(),
 		);
 		gl::TexParameteri(
 			gl::TEXTURE_2D,
@@ -948,11 +957,11 @@ impl Framebuffer {
 	}
 
 	unsafe fn bind(&self) {
-		gl::BindTexture(gl::FRAMEBUFFER, self.id);
+		gl::BindFramebuffer(gl::FRAMEBUFFER, self.id);
 	}
 
 	unsafe fn unbind() {
-		gl::BindTexture(gl::FRAMEBUFFER, 0);
+		gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
 	}
 
 	unsafe fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
@@ -1031,6 +1040,18 @@ impl Window {
 			used_program: 0,
 			audio_data: None,
 		})
+	}
+	
+	pub fn set_vsync(&mut self, vsync: bool) {
+		unsafe {
+			sdl::gl_set_swap_interval(
+				if vsync {
+					1
+				} else {
+					0
+				}
+			);
+		}
 	}
 
 	pub fn show(&mut self) {
@@ -1186,18 +1207,32 @@ impl Window {
 		}
 	}
 
-	pub fn create_rgba_texture(&mut self, params: &TextureParams) -> Texture {
+	pub fn create_texture(&mut self, params: &TextureParams) -> Texture {
 		unsafe { Texture::new(params) }
 	}
 
-	pub fn set_texture_data(
+	pub fn set_texture_data<T: Color>(
 		&mut self,
 		texture: &mut Texture,
-		data: &[impl Color],
+		data: &[T],
 		width: usize,
 		height: usize,
 	) -> Result<(), String> {
-		unsafe { texture.set_data(data, width, height) }?;
+		unsafe { texture.set_data(Some(data), width, height) }?;
+		Ok(())
+	}
+	
+	/// sets texture width + height but not data.
+	///
+	/// NOTE: you must still specify the color type!
+	/// for framebuffers, etc.
+	pub fn set_texture_no_data<T: Color>(
+		&mut self,
+		texture: &mut Texture,
+		width: usize,
+		height: usize,
+	) -> Result<(), String> {
+		unsafe { texture.set_data::<T>(None, width, height) }?;
 		Ok(())
 	}
 
@@ -1383,24 +1418,24 @@ impl Window {
 		unsafe { array.draw() };
 	}
 
-	pub fn is_key_down(&mut self, key: Key) -> bool {
+	pub fn is_key_down(&self, key: Key) -> bool {
 		let kbd_state = unsafe { sdl::get_keyboard_state() };
 		kbd_state[key.to_sdl() as usize] != 0
 	}
 
-	pub fn any_key_down(&mut self, keys: &[Key]) -> bool {
+	pub fn any_key_down(&self, keys: &[Key]) -> bool {
 		keys.iter().any(|&k| self.is_key_down(k))
 	}
 
-	pub fn is_shift_down(&mut self) -> bool {
+	pub fn is_shift_down(&self) -> bool {
 		self.is_key_down(Key::LShift) || self.is_key_down(Key::RShift)
 	}
 
-	pub fn is_ctrl_down(&mut self) -> bool {
+	pub fn is_ctrl_down(&self) -> bool {
 		self.is_key_down(Key::LCtrl) || self.is_key_down(Key::RCtrl)
 	}
 
-	pub fn is_alt_down(&mut self) -> bool {
+	pub fn is_alt_down(&self) -> bool {
 		self.is_key_down(Key::LAlt) || self.is_key_down(Key::RAlt)
 	}
 

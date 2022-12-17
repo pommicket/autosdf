@@ -10,11 +10,11 @@
 	- AA quality
 	- # iterations, distance cutoff
 ---release---
+- switch framebuffer texture to grayscale
 - show that   θ = σ(z) / sqrt(x² + y²)
               (x,y,z) → (x cosθ + y sinθ, y cosθ - x sinθ, z)
   is lipschitz continuous, & add it
 - feedback for copy/paste (flash screen or something)
-- clean up code w a big state object
 - Params instead of depth for GenRandom
    - allow multiple endpoints (cube & sphere & ...)
 - save seeds to a file then let user go back&forth through past sdfs
@@ -169,65 +169,113 @@ fn get_rng() -> impl rand::Rng {
 	rand::rngs::SmallRng::seed_from_u64(rand::random::<u64>())
 }
 
-fn try_main() -> Result<(), String> {
-	let mut window = win::Window::new("AutoSDF", 1280, 720, true)
-		.map_err(|e| format!("Error creating window: {e}"))?;
-	let mut programs = Programs::new(&mut window);
-	let config = sdf::SceneConfig {
-		sdf_max_depth: 7,
-		color_max_depth: 6,
-	};
-	let mut scene = sdf::Scene::good_random(&mut get_rng(), &config);
-	programs.load_scene(&mut window, &scene).unwrap_or_else(|e|
-		eprintln!("Error: {e}")
-	);
-	//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
+// sample size when testing to find default level set
+const TEST_HEIGHT: u16 = 100;
+const TEST_WIDTH: u16 = 100;
 
-	let mut buffer = window.create_buffer();
-	let data: &[[f32; 2]] = &[
-		[-1.0, -1.0],
-		[1.0, -1.0],
-		[1.0, 1.0],
-		[-1.0, -1.0],
-		[1.0, 1.0],
-		[-1.0, 1.0],
-	];
-	window.set_buffer_data(&mut buffer, data);
-	let mut array = window.create_vertex_array(buffer, &programs.main);
-	window.array_attrib2f(&mut array, "v_pos", 0);
+struct State {
+	window: win::Window,
+	view: View,
+	show_debug_info: bool,
+	total_time: f64,
+	frame_time: Instant,
+	programs: Programs,
+	config: sdf::SceneConfig,
+	scene: sdf::Scene,
+	framebuffer_texture: win::Texture,
+	framebuffer: win::Framebuffer,
+	main_array: win::VertexArray,
+}
 
-	let mut view = View::default();
-
-	window.set_mouse_relative(true);
-
-	let mut frame_time = Instant::now();
-	let mut show_debug_info = false;
-	let mut total_time = 0.0;
-
-	'mainloop: loop {
-		let frame_dt = frame_time.elapsed().as_secs_f32();
-		frame_time = Instant::now();
-
-		while let Some(event) = window.next_event() {
+impl State {
+	fn new() -> Result<Self, String> {
+	
+		let mut window = win::Window::new("AutoSDF", 1280, 720, true)
+			.map_err(|e| format!("Error creating window: {e}"))?;
+		let mut programs = Programs::new(&mut window);
+		let config = sdf::SceneConfig {
+			sdf_max_depth: 7,
+			color_max_depth: 6,
+		};
+		let scene = sdf::Scene::good_random(&mut get_rng(), &config);
+		programs.load_scene(&mut window, &scene).unwrap_or_else(|e|
+			eprintln!("Error: {e}")
+		);
+		//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
+	
+		let mut framebuffer_texture = window.create_texture(&Default::default());
+		// we don't really care if there's an error. not much bad will happen.
+		let _ = window.set_texture_no_data::<win::ColorU8>(&mut framebuffer_texture, TEST_WIDTH.into(), TEST_HEIGHT.into());
+		
+		let mut framebuffer = window.create_framebuffer();
+		window.set_framebuffer_texture(
+			&mut framebuffer,
+			win::FramebufferAttachment::Color0,
+			&framebuffer_texture,
+		);
+			
+		let mut main_buffer = window.create_buffer();
+		let data: &[[f32; 2]] = &[
+			[-1.0, -1.0],
+			[1.0, -1.0],
+			[1.0, 1.0],
+			[-1.0, -1.0],
+			[1.0, 1.0],
+			[-1.0, 1.0],
+		];
+		window.set_buffer_data(&mut main_buffer, data);
+		let mut main_array = window.create_vertex_array(main_buffer, &programs.main);
+		window.array_attrib2f(&mut main_array, "v_pos", 0);
+		let view = View::default();
+	
+		window.set_mouse_relative(true);
+		
+		Ok(Self {
+			window,
+			programs,
+			view,
+			config,
+			frame_time: Instant::now(),
+			show_debug_info: false,
+			total_time: 0.0,
+			scene,
+			framebuffer_texture,
+			framebuffer,
+			main_array,
+		})
+	}
+	
+	fn load_scene(&mut self, scene: sdf::Scene) {
+		match self.programs.load_scene(&mut self.window, &scene) {
+			Ok(()) => {
+				self.scene = scene;
+				self.view.level_set = 0.0;
+			}
+			Err(e) => {
+				eprintln!("Error: {e}")
+			}
+		};
+	}
+	
+	// returns false if we should quit
+	fn frame(&mut self) -> bool {
+		let frame_dt = self.frame_time.elapsed().as_secs_f32();
+		self.frame_time = Instant::now();
+		self.total_time += f64::from(frame_dt);
+		
+		while let Some(event) = self.window.next_event() {
 			use win::Event::*;
 			use win::Key::*;
 			match event {
-				Quit | KeyDown { key: Escape, .. } => break 'mainloop,
-				KeyDown { key: F1, .. } => show_debug_info = !show_debug_info,
+				Quit | KeyDown { key: Escape, .. } => return false,
+				KeyDown { key: F1, .. } => self.show_debug_info = !self.show_debug_info,
 				KeyDown { key: R, .. } => {
-					scene = sdf::Scene::good_random(&mut get_rng(), &config);
-					match programs.load_scene(&mut window, &scene) {
-						Ok(()) => {
-							view.level_set = 0.0;
-						}
-						Err(e) => {
-							eprintln!("Error: {e}")
-						}
-					};
+					let new_scene = sdf::Scene::good_random(&mut get_rng(), &self.config);
+					self.load_scene(new_scene);
 				}
 				KeyDown { key: C, modifier, .. } if modifier.ctrl() => {
 					// copy scene
-					match window.set_clipboard_text(&scene.export_string()) {
+					match self.window.set_clipboard_text(&self.scene.export_string()) {
 						Ok(()) => {
 						}
 						Err(e) => {
@@ -237,19 +285,11 @@ fn try_main() -> Result<(), String> {
 				}
 				KeyDown { key: V, modifier, .. } if modifier.ctrl() => {
 					// paste scene
-					match window.get_clipboard_text() {
+					match self.window.get_clipboard_text() {
 						Ok(s) => {
 							match sdf::Scene::import_string(&s) {
 								Some(new_scene) => {
-									scene = new_scene;
-									match programs.load_scene(&mut window, &scene) {
-										Ok(()) => {
-											view.level_set = 0.0;
-										}
-										Err(e) => {
-											eprintln!("Error: {e}")
-										}
-									}
+									self.load_scene(new_scene);
 								}
 								None => {
 									eprintln!("bad string")
@@ -262,11 +302,11 @@ fn try_main() -> Result<(), String> {
 						}
 					}
 				}
-				KeyDown { key: N0, .. } => view.level_set = 0.0,
+				KeyDown { key: N0, .. } => self.view.level_set = 0.0,
 				MouseMotion { xrel, yrel, .. } => {
 					let mouse_sensitivity = 0.05;
-					view.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
-					view.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
+					self.view.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
+					self.view.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
 				}
 				_ => {}
 			}
@@ -278,6 +318,7 @@ fn try_main() -> Result<(), String> {
 			let mut dy = 0.0;
 			let mut dz = 0.0;
 			let mut dl = 0.0;
+			let window = &self.window;
 			use win::Key::*;
 			if window.any_key_down(&[W, Up]) {
 				dz -= 1.0;
@@ -310,20 +351,22 @@ fn try_main() -> Result<(), String> {
 			if let Some(motion) = motion.try_normalize(0.001) {
 				let move_speed = 4.0 * speed_multiplier;
 				let motion = motion * frame_dt * move_speed;
-				let motion = view.rotation() * motion;
-				view.pos += motion;
+				let motion = self.view.rotation() * motion;
+				self.view.pos += motion;
 			}
 
 			let level_set_speed = 1.0 * speed_multiplier;
-			view.level_set += dl * frame_dt * level_set_speed;
+			self.view.level_set += dl * frame_dt * level_set_speed;
 		}
 
+		let window = &mut self.window;
+		let view = &self.view;
 		window.viewport_full_screen();
 
 		window.clear_screen(win::ColorF32::BLACK);
-		window.use_program(&programs.main);
+		window.use_program(&self.programs.main);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
-		window.uniform1f("u_time", total_time);
+		window.uniform1f("u_time", self.total_time as f32);
 		window.uniform1f("u_fov", std::f32::consts::PI * 0.25);
 		window.uniform1f("u_focal_length", 1.0);
 		window.uniform1f("u_level_set", view.level_set);
@@ -331,15 +374,21 @@ fn try_main() -> Result<(), String> {
 		window.uniform3x3f("u_rotation", view.rotation().as_slice());
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
 
-		window.draw_array(&array);
+		window.draw_array(&self.main_array);
 
 		window.swap();
-		if show_debug_info {
+		if self.show_debug_info {
 			println!("frame time = {:?}ms", frame_dt * 1000.0);
 		}
-
-		total_time += frame_dt;
+		
+		true
 	}
+}
+
+
+fn try_main() -> Result<(), String> {
+	let mut state = State::new()?;
+	while state.frame() {}
 
 	Ok(())
 }
