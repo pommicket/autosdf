@@ -10,6 +10,9 @@ use std::{fmt, mem};
 
 pub type AudioCallback = fn(sample_rate: u32, samples: &mut [f32]);
 
+/// dammit rust why wont you stabilize negative_impls
+type NoSendSync = *const u8;
+
 struct AudioData {
 	callback: AudioCallback,
 	device: sdl::SDL_AudioDeviceID,
@@ -385,19 +388,21 @@ impl ColorF32 {
 
 pub struct Shader {
 	id: GLuint,
+	/// shaders should not be sent across threads because of the drop function.
+	_unused: NoSendSync,
 }
 
 impl Shader {
-	fn new(r#type: GLenum, source: &str) -> Result<Self, String> {
-		let id = unsafe { gl::CreateShader(r#type) };
+	unsafe fn new(r#type: GLenum, source: &str) -> Result<Self, String> {
+		let id = gl::CreateShader(r#type);
 		let result = Self::new_with_id(id, r#type, source);
 		if result.is_err() {
-			unsafe { gl::DeleteShader(id) };
+			gl::DeleteShader(id);
 		}
 		result
 	}
 
-	fn new_with_id(id: GLuint, r#type: GLenum, source: &str) -> Result<Self, String> {
+	unsafe fn new_with_id(id: GLuint, r#type: GLenum, source: &str) -> Result<Self, String> {
 		if id == 0 {
 			return Err(format!("couldn't create shader (GL error {})", unsafe {
 				gl::GetError()
@@ -431,30 +436,30 @@ out vec4 o_color;
 			let sources_ptr = &sources[0] as *const *const GLchar;
 			let lengths_ptr = &lengths[0] as *const GLint;
 
-			unsafe { gl::ShaderSource(id, sources.len() as _, sources_ptr, lengths_ptr) };
+			gl::ShaderSource(id, sources.len() as _, sources_ptr, lengths_ptr);
 		}
 
-		unsafe { gl::CompileShader(id) };
+		gl::CompileShader(id);
 		{
 			//check log
 			let mut log = [0u8; 1024];
 			let mut len: GLsizei = 0;
 			let logp = &mut log as *mut u8 as *mut GLchar;
 			let lenp = &mut len as *mut GLsizei;
-			unsafe { gl::GetShaderInfoLog(id, log.len() as GLsizei, lenp, logp) };
+			gl::GetShaderInfoLog(id, log.len() as GLsizei, lenp, logp);
 			if len > 0 {
 				eprintln!("{}", String::from_utf8_lossy(&log[..len as usize]));
 			}
 		}
 		{
 			let mut status: GLint = 0;
-			unsafe { gl::GetShaderiv(id, gl::COMPILE_STATUS, (&mut status) as _) };
+			gl::GetShaderiv(id, gl::COMPILE_STATUS, (&mut status) as _);
 			if status == 0 {
 				return Err("failed to compile".to_string());
 			}
 		}
 
-		Ok(Self { id })
+		Ok(Self { id, _unused: 0 as _ })
 	}
 }
 
@@ -466,34 +471,36 @@ impl Drop for Shader {
 
 pub struct Program {
 	id: GLuint,
+	/// programs should not be sent across threads because of the drop function.
+	_unused: NoSendSync,
 }
 
 impl Program {
-	fn new() -> Self {
-		let id = unsafe { gl::CreateProgram() };
-		Self { id }
+	unsafe fn new() -> Self {
+		let id = gl::CreateProgram();
+		Self { id, _unused: 0 as _ }
 	}
 	
-	fn new_with_shaders(shaders: &[Shader]) -> Result<Self, String> {
+	unsafe fn new_with_shaders(shaders: &[Shader]) -> Result<Self, String> {
 		let mut program = Self::new();
 		program.relink(shaders)?;
 		Ok(program)
 	}
 
 	
-	fn relink(&mut self, shaders: &[Shader]) -> Result<(), String> {
+	unsafe fn relink(&mut self, shaders: &[Shader]) -> Result<(), String> {
 		let id = self.id;
 		for shader in shaders {
-			unsafe { gl::AttachShader(id, shader.id) };
+			gl::AttachShader(id, shader.id);
 		}
-		unsafe { gl::LinkProgram(id) };
+		gl::LinkProgram(id);
 		{
 			// check log
 			let mut log = [0u8; 1024];
 			let mut len: GLsizei = 0;
 			let logp = &mut log as *mut u8 as *mut GLchar;
 			let lenp = &mut len as *mut GLsizei;
-			unsafe { gl::GetProgramInfoLog(id, log.len() as GLsizei, lenp, logp) };
+			gl::GetProgramInfoLog(id, log.len() as GLsizei, lenp, logp);
 			if len > 0 {
 				eprintln!("{}", String::from_utf8_lossy(&log[..len as usize]));
 			}
@@ -501,16 +508,14 @@ impl Program {
 
 		{
 			let mut status: GLint = 0;
-			unsafe { gl::GetProgramiv(id, gl::LINK_STATUS, (&mut status) as _) };
+			gl::GetProgramiv(id, gl::LINK_STATUS, (&mut status) as _);
 			if status == 0 {
 				return Err("failed to link".to_string());
 			}
 		}
 		
 		for shader in shaders {
-			unsafe {
-				gl::DetachShader(id, shader.id);
-			}
+			gl::DetachShader(id, shader.id);
 		}
 
 		Ok(())
@@ -527,38 +532,37 @@ pub struct Buffer {
 	id: GLuint,
 	stride: u32,
 	count: u32,
+	/// buffers should not be sent across threads because of the drop function.
+	_unused: NoSendSync,
 }
 
 impl Buffer {
-	fn new() -> Self {
+	unsafe fn new() -> Self {
 		let mut id = 0;
-		unsafe { gl::CreateBuffers(1, &mut id as *mut GLuint) };
+		gl::CreateBuffers(1, &mut id as *mut GLuint);
 		Self {
 			id,
 			stride: 0,
 			count: 0,
+			_unused: 0 as _,
 		}
 	}
 
-	fn bind(&self) {
-		unsafe { gl::BindBuffer(gl::ARRAY_BUFFER, self.id) };
+	unsafe fn bind(&self) {
+		gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
 	}
 
-	fn set_data<T>(&mut self, data: &[T]) {
-		unsafe {
-			gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
-		}
+	unsafe fn set_data<T>(&mut self, data: &[T]) {
+		gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
 		self.count = data.len() as u32;
 		self.stride = mem::size_of::<T>() as u32;
 
-		unsafe {
-			gl::BufferData(
-				gl::ARRAY_BUFFER,
-				(self.count * self.stride) as _,
-				data.as_ptr() as _,
-				gl::STATIC_DRAW,
-			);
-		}
+		gl::BufferData(
+			gl::ARRAY_BUFFER,
+			(self.count * self.stride) as _,
+			data.as_ptr() as _,
+			gl::STATIC_DRAW,
+		);
 	}
 }
 
@@ -572,29 +576,32 @@ pub struct VertexArray {
 	buffer: Buffer,
 	id: GLuint,
 	program: GLuint,
+	/// vertex arrays should not be sent across threads because of the drop function.
+	_unused: NoSendSync,
 }
 
 impl VertexArray {
-	fn new(buffer: Buffer, program: &Program) -> Self {
+	unsafe fn new(buffer: Buffer, program: &Program) -> Self {
 		let mut id: GLuint = 0;
 
-		unsafe { gl::GenVertexArrays(1, &mut id as *mut GLuint) };
+		gl::GenVertexArrays(1, &mut id as *mut GLuint);
 
 		Self {
 			id,
 			buffer,
 			program: program.id,
+			_unused: 0 as _,
 		}
 	}
 
-	fn bind(&self) {
-		unsafe { gl::BindVertexArray(self.id) };
+	unsafe fn bind(&self) {
+		gl::BindVertexArray(self.id);
 	}
 
-	fn attribnf(&mut self, n: u8, name: &str, offset: usize) -> bool {
+	unsafe fn attribnf(&mut self, n: u8, name: &str, offset: usize) -> bool {
 		let Ok(cstring) = CString::new(name) else { return false };
 		let cstr = cstring.as_ptr() as *const GLchar;
-		let loc = unsafe { gl::GetAttribLocation(self.program, cstr) };
+		let loc = gl::GetAttribLocation(self.program, cstr);
 		let Ok(loc) = loc.try_into() else { return false };
 
 		if offset + usize::from(n) * size_of::<f32>() > self.buffer.stride as usize {
@@ -604,23 +611,21 @@ impl VertexArray {
 
 		self.bind();
 		self.buffer.bind();
-		unsafe {
-			gl::VertexAttribPointer(
-				loc,
-				n.into(),
-				gl::FLOAT,
-				0,
-				self.buffer.stride as _,
-				offset as _,
-			)
-		};
-		unsafe { gl::EnableVertexAttribArray(loc) };
+		gl::VertexAttribPointer(
+			loc,
+			n.into(),
+			gl::FLOAT,
+			0,
+			self.buffer.stride as _,
+			offset as _,
+		);
+		gl::EnableVertexAttribArray(loc);
 		true
 	}
 
-	fn draw(&self) {
+	unsafe fn draw(&self) {
 		self.bind();
-		unsafe { gl::DrawArrays(gl::TRIANGLES, 0, self.buffer.count as i32) };
+		gl::DrawArrays(gl::TRIANGLES, 0, self.buffer.count as i32);
 	}
 }
 
@@ -650,9 +655,21 @@ extern "system" fn gl_message_callback(
 pub struct Texture {
 	id: GLuint,
 	params: TextureParams,
+	/// textures should not be sent across threads because of the drop function.
+	_unused: NoSendSync,
 }
 
 impl Texture {
+	unsafe fn new(params: &TextureParams) -> Self {
+		let mut id: GLuint = 0;
+		gl::GenTextures(1, (&mut id) as *mut GLuint);
+		Self {
+			id,
+			params: params.clone(),
+			_unused: 0 as _,
+		}
+	}
+	
 	unsafe fn bind(&self) {
 		gl::BindTexture(gl::TEXTURE_2D, self.id);
 	}
@@ -768,14 +785,15 @@ impl FramebufferAttachment {
 }
 
 pub struct Framebuffer {
-	id: GLuint
+	id: GLuint,
+	_unused: NoSendSync,
 }
 
 impl Framebuffer {
 	unsafe fn new() -> Self {
 		let mut id: GLuint = 0;
 		gl::GenFramebuffers(1, (&mut id) as *mut GLuint);
-		Self { id }
+		Self { id, _unused: 0 as _ }
 	}
 	
 	unsafe fn bind(&self) {
@@ -865,7 +883,7 @@ impl Window {
 	
 	/// new empty shader program
 	pub fn new_program(&mut self) -> Program {
-		Program::new()
+		unsafe { Program::new() }
 	}
 
 	pub fn create_program(
@@ -873,9 +891,9 @@ impl Window {
 		source_vshader: &str,
 		source_fshader: &str,
 	) -> Result<Program, String> {
-		let vshader = Shader::new(gl::VERTEX_SHADER, source_vshader)?;
-		let fshader = Shader::new(gl::FRAGMENT_SHADER, source_fshader)?;
-		Program::new_with_shaders(&[vshader, fshader])
+		let vshader = unsafe { Shader::new(gl::VERTEX_SHADER, source_vshader) }?;
+		let fshader = unsafe { Shader::new(gl::FRAGMENT_SHADER, source_fshader) }?;
+		unsafe { Program::new_with_shaders(&[vshader, fshader]) }
 	}
 	
 	pub fn link_program(
@@ -884,21 +902,21 @@ impl Window {
 		source_vshader: &str,
 		source_fshader: &str,
 	) -> Result<(), String> {
-		let vshader = Shader::new(gl::VERTEX_SHADER, source_vshader)?;
-		let fshader = Shader::new(gl::FRAGMENT_SHADER, source_fshader)?;
-		program.relink(&[vshader, fshader])
+		let vshader = unsafe { Shader::new(gl::VERTEX_SHADER, source_vshader) }?;
+		let fshader = unsafe { Shader::new(gl::FRAGMENT_SHADER, source_fshader) }?;
+		unsafe { program.relink(&[vshader, fshader]) }
 	}
 
 	pub fn create_buffer(&mut self) -> Buffer {
-		Buffer::new()
+		unsafe { Buffer::new() }
 	}
 
 	pub fn set_buffer_data<T>(&mut self, buffer: &mut Buffer, data: &[T]) {
-		buffer.set_data(data);
+		unsafe { buffer.set_data(data) };
 	}
 
 	pub fn create_vertex_array(&mut self, buffer: Buffer, program: &Program) -> VertexArray {
-		VertexArray::new(buffer, program)
+		unsafe { VertexArray::new(buffer, program) }
 	}
 
 	fn array_attribnf(
@@ -908,7 +926,7 @@ impl Window {
 		name: &str,
 		offset: usize,
 	) -> bool {
-		array.attribnf(n, name, offset)
+		unsafe { array.attribnf(n, name, offset) }
 	}
 
 	pub fn array_attrib2f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
@@ -993,14 +1011,7 @@ impl Window {
 	}
 
 	pub fn create_rgba_texture(&mut self, params: &TextureParams) -> Texture {
-		let mut id: GLuint = 0;
-		unsafe {
-			gl::GenTextures(1, (&mut id) as *mut GLuint);
-		}
-		Texture {
-			id,
-			params: params.clone(),
-		}
+		unsafe { Texture::new(params) }
 	}
 
 	pub fn set_texture_data(
@@ -1181,7 +1192,7 @@ impl Window {
 	}
 
 	pub fn draw_array(&mut self, array: &VertexArray) {
-		array.draw();
+		unsafe { array.draw() };
 	}
 
 	pub fn is_key_down(&mut self, key: Key) -> bool {
