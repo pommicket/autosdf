@@ -257,9 +257,9 @@ trait Function: Sized + GenRandom {
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable;
 
 	/// GLSL type which is the input to this function
-	fn input_type() -> GLSLType;
+	const INPUT_TYPE: GLSLType;
 	/// GLSL type which is the output of this function
-	fn output_type() -> GLSLType;
+	const OUTPUT_TYPE: GLSLType;
 
 	/// adds GLSL code for function to `code`.
 	fn to_glsl_function(&self, name: &str, code: &mut String) {
@@ -268,8 +268,8 @@ trait Function: Sized + GenRandom {
 		write_str!(
 			code,
 			"{} {name}({} {input}) {{\n",
-			Self::output_type(),
-			Self::input_type()
+			Self::OUTPUT_TYPE,
+			Self::INPUT_TYPE
 		);
 		let output = self.to_glsl(input, code, &mut var);
 		write_str!(code, "return {output};\n}}\n\n");
@@ -298,12 +298,8 @@ trait Function: Sized + GenRandom {
 }
 
 impl Function for RToR {
-	fn input_type() -> GLSLType {
-		GLSLType::Float
-	}
-	fn output_type() -> GLSLType {
-		GLSLType::Float
-	}
+	const INPUT_TYPE: GLSLType = GLSLType::Float;
+	const OUTPUT_TYPE: GLSLType = GLSLType::Float;
 
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use RToR::*;
@@ -324,12 +320,8 @@ impl Function for RToR {
 }
 
 impl Function for R3ToR3 {
-	fn input_type() -> GLSLType {
-		GLSLType::Vec3
-	}
-	fn output_type() -> GLSLType {
-		GLSLType::Vec3
-	}
+	const INPUT_TYPE: GLSLType = GLSLType::Vec3;
+	const OUTPUT_TYPE: GLSLType = GLSLType::Vec3;
 
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR3::*;
@@ -418,12 +410,8 @@ impl Function for R3ToR3 {
 }
 
 impl Function for R3ToR {
-	fn input_type() -> GLSLType {
-		GLSLType::Vec3
-	}
-	fn output_type() -> GLSLType {
-		GLSLType::Float
-	}
+	const INPUT_TYPE: GLSLType = GLSLType::Vec3;
+	const OUTPUT_TYPE: GLSLType = GLSLType::Float;
 
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR::*;
