@@ -152,10 +152,10 @@ pub enum R3ToR3 {
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	#[prob(1)]
 	Translate(Constant3),
-	#[prob(2)]
+	#[prob(4)]
 	#[bias(0.01)] // prevent division by 0
 	Sin(Constant), // 1/c sin(cx)
-	#[prob(2)]
+	#[prob(4)]
 	#[bias(0.01)]
 	InfiniteMirrors(Constant),
 	#[prob(2)]
