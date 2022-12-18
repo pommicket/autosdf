@@ -1,7 +1,5 @@
 /*
 @TODO:
-- bring time back, w pause/rewind/adjust time speed (start out paused?)
-- fullscreen key
 - options for:
 	- max framerate
 	- mouse sensitivity
@@ -9,11 +7,13 @@
 	- AA quality
 	- # iterations, distance cutoff
 ---release---
+- [ and ] to move through time
 - switch framebuffer texture to grayscale
 - show that   θ = σ(z) / sqrt(x² + y²)
 			  (x,y,z) → (x cosθ + y sinθ, y cosθ - x sinθ, z)
   is lipschitz continuous, & add it
 - feedback for copy/paste (flash screen or something)
+- feedback for pause/unpause/rewind
 - Params instead of depth for GenRandom
    - allow multiple endpoints (cube & sphere & ...)
 - save seeds to a file then let user go back&forth through past sdfs
@@ -41,6 +41,7 @@ a263736466a167436f6d706f736583a166526f7461746583a163463332fa3f76cab2a163463332fa
 a263736466a167436f6d706f736583a165537153696ea163463332fa3e784c98a1634d697883a166537068657265a163463332fa3ea1ce4ca1634d696e82a166537068657265a163463332fa3f55f124a167436f6d706f736583675369676d6f6964a166537068657265a163463332fa3ef84fb0684964656e74697479a163463332fa3d2f72c0684964656e746974796e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3e9d85d0
 a263736466a1634d696e82a1634d696e82a166537068657265a163463332fa3f2365aca1634d697883a167436f6d706f736583a16641726374616ea163463332fa3eb04a5ca167436f6d706f736583675369676d6f6964a169536d6f6f74684d696e82a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3eeb25b8684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f10d6a2684964656e74697479684964656e74697479684964656e74697479a165546f727573a266726164697573a163463332fa3d9099f069746869636b6e657373a163463332fa3e00b102a163463332fa3f06b5a2a1634d696e82a165546f727573a266726164697573a163463332fa40121b0169746869636b6e657373a163463332fa3e32f4faa1634d697883a16443756265a163463332fa3f7f9dc8a1634d697883a165546f727573a266726164697573a163463332fa3f9286e369746869636b6e657373a163463332fa3d8a3f27a167436f6d706f736583a167436f6d706f736582a167436f6d706f736582684964656e74697479684964656e74697479a16f496e66696e6974654d6972726f7273a163463332fa3ea62688a168426f784672616d65a26473697a65a163463332fa3fc0fb4969746869636b6e657373a163463332fa3e472462684964656e74697479a163463332fa3f69a73ea163463332fa3f5b9c9e6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3ef4ea8c
 a263736466a169536d6f6f74684d696e82a1634d696e82a167436f6d706f736583a167436f6d706f736582a16641726374616ea163463332fa3e6d7230a1695472616e736c61746583a163463332fa3e7262f8a163463332fa3eece0eca163463332fa3f49c42ca168426f784672616d65a26473697a65a163463332fa3ff3ee1169746869636b6e657373a163463332fa3df6dfed684964656e74697479a167436f6d706f736583a16f496e66696e6974654d6972726f7273a163463332fa3f2a2de8a165546f727573a266726164697573a163463332fa3fc93f1e69746869636b6e657373a163463332fa3e0fa700684964656e74697479a169536d6f6f74684d696e82a169536d6f6f74684d696e82a1634d696e82a169536d6f6f74684d696e82a167436f6d706f736583675369676d6f6964a1634d696e82a166537068657265a163463332fa3e0586b0a166537068657265a163463332fa3f4d6214684964656e74697479a167436f6d706f736583a167436f6d706f736582684964656e74697479684964656e74697479a1634d697883a166537068657265a163463332fa3f5c46e6a166537068657265a163463332fa3f3f4896a163463332fa3f10ba30684964656e74697479a166537068657265a163463332fa3ef3b604a167436f6d706f736583a165537153696ea163463332fa3ef1bfb8a1634d697883a1634d697883a168426f784672616d65a26473697a65a163463332fa3ee4801069746869636b6e657373a163463332fa3dc84d37a168426f784672616d65a26473697a65a163463332fa4019d5d269746869636b6e657373a163463332fa3d5d0307a163463332fa3eb7554ca167436f6d706f736583a165537153696ea163463332fa3f31c33ca167436f6d706f736583684964656e74697479a166537068657265a163463332fa3e7db3c0684964656e74697479684964656e74697479a163463332fa3f3176c0684964656e74697479a165546f727573a266726164697573a163463332fa3f253f0c69746869636b6e657373a163463332fa3c96c48d6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3ea219f4
+a263736466a169536d6f6f74684d696e82a1634d697883a167436f6d706f736583a16641726374616ea16454696d6582fa3da97b73fa3eddf3cca167436f6d706f736583a16f496e66696e6974654d6972726f7273a16454696d6582fabb6c5400fa3c230980a167436f6d706f736583675369676d6f6964a167436f6d706f736583a167436f6d706f736582684964656e74697479684964656e74697479a16443756265a163463332fa3edf6864684964656e74697479684964656e74697479684964656e74697479684964656e74697479a166537068657265a163463332fa3ee32af4a16454696d6582fa3db4b603fa3ea79394a1634d697883a167436f6d706f736583a16353696ea163463332fa3de4e160a167436f6d706f736583a16f496e66696e6974654d6972726f7273a163463332fa3f7493fea168426f784672616d65a26473697a65a16454696d6582fa3e92c08dfa3ee156b869746869636b6e657373a16454696d6582fa3c74f202fa3df09e1d684964656e74697479684964656e74697479a1634d697883a16443756265a163463332fa3f5f8194a1634d696e82a1634d697883a167436f6d706f736583675369676d6f6964a168426f784672616d65a26473697a65a163463332fa3fe3873769746869636b6e657373a163463332fa3e3524e7684964656e74697479a1634d696e82a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f50ffb8684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3c693200684964656e74697479a163463332fa3e5d3250a168426f784672616d65a26473697a65a163463332fa3fb01f6669746869636b6e657373a16454696d6582fabc5d9d48fa3d1cc993a163463332fa3f394d40a16454696d6582fabda7629afa3eefd35c6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3d8dc730
 */
 
 extern crate nalgebra;
@@ -62,6 +63,8 @@ type Rot3 = Rotation3<f32>;
 struct View {
 	pos: Vec3,
 	rotation: Mat3,
+	time: f64,
+	time_speed: f64,
 	level_set: f32,
 }
 
@@ -73,6 +76,8 @@ impl Default for View {
 		Self {
 			pos,
 			rotation,
+			time: 0.0,
+			time_speed: 0.0,
 			level_set: 0.0,
 		}
 	}
@@ -83,6 +88,23 @@ impl View {
 	fn rotation(&self) -> Mat3 {
 		self.rotation
 	}
+
+	fn pause(&mut self) {
+		self.time_speed = 0.0;
+	}
+	
+	fn paused(&self) -> bool {
+		self.time_speed == 0.0
+	}
+	
+	fn unpause(&mut self, rewind: bool) {
+		self.time_speed = if rewind { -1.0 } else { 1.0 };
+	}
+	
+	fn pass_time(&mut self, dt: f64) {
+		self.time += self.time_speed * dt;
+	}
+	
 
 	fn yaw_by(&mut self, yaw: f32) {
 		self.rotation *= Rot3::from_euler_angles(0.0, yaw, 0.0);
@@ -182,7 +204,7 @@ struct State {
 	view: View,
 	initial_view: View,
 	show_debug_info: bool,
-	total_time: f64,
+	fullscreen: bool,
 	frame_time: Instant,
 	programs: Programs,
 	config: sdf::SceneConfig,
@@ -195,7 +217,7 @@ struct State {
 
 impl State {
 	fn new() -> Result<Self, String> {
-		let mut window = win::Window::new("AutoSDF", 1280, 720, true)
+		let mut window = win::Window::new("AutoSDF", 1280, 720, &Default::default())
 			.map_err(|e| format!("Error creating window: {e}"))?;
 		let mut programs = Programs::new(&mut window);
 		let config = sdf::SceneConfig {
@@ -248,7 +270,7 @@ impl State {
 			config,
 			frame_time: Instant::now(),
 			show_debug_info: false,
-			total_time: 0.0,
+			fullscreen: false,
 			scene: sdf::Scene::default(),
 			framebuffer_texture,
 			framebuffer,
@@ -308,7 +330,6 @@ impl State {
 	fn frame(&mut self) -> bool {
 		let frame_dt = self.frame_time.elapsed().as_secs_f32();
 		self.frame_time = Instant::now();
-		self.total_time += f64::from(frame_dt);
 
 		while let Some(event) = self.window.next_event() {
 			use win::Event::*;
@@ -332,6 +353,12 @@ impl State {
 					}
 				}
 				KeyDown {
+					key: F, ..
+				} => {
+					self.fullscreen = !self.fullscreen;
+					self.window.set_fullscreen(self.fullscreen);
+				}
+				KeyDown {
 					key: V, modifier, ..
 				} if modifier.ctrl() => {
 					// paste scene
@@ -351,6 +378,15 @@ impl State {
 					}
 				}
 				KeyDown { key: N0, .. } => self.view = self.initial_view.clone(),
+				KeyDown { key: Space, modifier } => {
+					if !self.view.paused() {
+						self.view.pause();
+					} else if modifier.shift() {
+						self.view.unpause(true);
+					} else {
+						self.view.unpause(false);
+					}
+				}
 				MouseMotion { xrel, yrel, .. } => {
 					let mouse_sensitivity = 0.05;
 					self.view
@@ -361,7 +397,9 @@ impl State {
 				_ => {}
 			}
 		}
-
+		
+		self.view.pass_time(frame_dt.into());
+		
 		{
 			// movement
 			let mut dx = 0.0;
@@ -370,6 +408,8 @@ impl State {
 			let mut dl = 0.0;
 			let window = &self.window;
 			use win::Key::*;
+			
+			
 			if window.any_key_down(&[W, Up]) {
 				dz -= 1.0;
 			}
@@ -382,16 +422,16 @@ impl State {
 			if window.any_key_down(&[D, Right]) {
 				dx += 1.0;
 			}
-			if window.is_key_down(Q) {
+			if window.any_key_down(&[PageUp, NumPad9, Q]) {
 				dy += 1.0;
 			}
-			if window.is_key_down(E) {
+			if window.any_key_down(&[PageDown, NumPad3, E]) {
 				dy -= 1.0;
 			}
-			if window.any_key_down(&[PageUp, NumPad9, Equals]) {
+			if window.any_key_down(&[Equals]) {
 				dl += 1.0;
 			}
-			if window.any_key_down(&[PageDown, NumPad3, Minus]) {
+			if window.any_key_down(&[Minus]) {
 				dl -= 1.0;
 			}
 			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
@@ -416,7 +456,7 @@ impl State {
 		window.clear_screen(win::ColorF32::BLACK);
 		window.use_program(&self.programs.main);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
-		window.uniform1f("u_time", self.total_time as f32);
+		window.uniform1f("u_time", view.time as f32);
 		window.uniform1f("u_fov", std::f32::consts::PI * 0.25);
 		window.uniform1f("u_focal_length", 1.0);
 		window.uniform1f("u_level_set", view.level_set);

@@ -985,8 +985,22 @@ impl Drop for Framebuffer {
 	}
 }
 
+pub struct WindowProperties {
+	shown: bool,
+	resizable: bool,
+}
+
+impl Default for WindowProperties {
+	fn default() -> Self {
+		Self {
+			shown: true,
+			resizable: true,
+		}
+	}
+}
+
 impl Window {
-	pub fn new(title: &str, width: i32, height: i32, shown: bool) -> Result<Self, String> {
+	pub fn new(title: &str, width: i32, height: i32, properties: &WindowProperties) -> Result<Self, String> {
 		{
 			static WINDOW_CREATED: Mutex<bool> = Mutex::new(false);
 			let guard = WINDOW_CREATED.lock();
@@ -1009,8 +1023,11 @@ impl Window {
 			sdl::gl_set_context_version(3, 0);
 		}
 		let mut flags = sdl::SDL_WINDOW_OPENGL;
-		if !shown {
+		if !properties.shown {
 			flags |= sdl::SDL_WINDOW_HIDDEN;
+		}
+		if properties.resizable {
+			flags |= sdl::SDL_WINDOW_RESIZABLE;
 		}
 		let sdlwin = unsafe { sdl::create_window(title, width, height, flags) }?;
 		let ctx = unsafe { sdl::gl_create_context(sdlwin) }?;
@@ -1046,6 +1063,18 @@ impl Window {
 	pub fn set_vsync(&mut self, vsync: bool) {
 		unsafe {
 			sdl::gl_set_swap_interval(vsync.into());
+		}
+	}
+	
+	pub fn set_fullscreen(&mut self, fullscreen: bool) {
+		unsafe {
+			// i dont care if going fullscreen fails
+			let _ = sdl::set_window_fullscreen(self.sdlwin,
+			if fullscreen {
+				sdl::SDL_WINDOW_FULLSCREEN_DESKTOP
+			} else {
+				0
+			});
 		}
 	}
 

@@ -1,9 +1,12 @@
 // used to determine the default level set
 
-%COMMON%
-%SDF%
 
 IN vec2 pos;
+
+uniform float u_time;
+
+%COMMON%
+%SDF%
 
 vec4 rand(vec2 coord) {
 	// this seems to give pretty good quality noise for |coord| < 2

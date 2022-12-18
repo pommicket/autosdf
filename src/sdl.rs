@@ -714,6 +714,7 @@ extern "C" {
 	fn SDL_CloseAudioDevice(dev: SDL_AudioDeviceID);
 	fn SDL_GetClipboardText() -> *mut c_char;
 	fn SDL_SetClipboardText(text: *const c_char) -> c_int;
+	fn SDL_SetWindowFullscreen(window: *mut SDL_Window, flags: u32) -> c_int;
 	fn SDL_free(mem: *mut c_void);
 }
 
@@ -1161,6 +1162,15 @@ pub unsafe fn set_clipboard_text(s: &str) -> Result<(), String> {
 	};
 
 	let result = SDL_SetClipboardText(cstring.as_ptr());
+	if result == 0 {
+		Ok(())
+	} else {
+		Err(get_err())
+	}
+}
+
+pub unsafe fn set_window_fullscreen(win: *mut SDL_Window, flags: u32) -> Result<(), String> {
+	let result = SDL_SetWindowFullscreen(win, flags);
 	if result == 0 {
 		Ok(())
 	} else {
