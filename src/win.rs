@@ -1000,7 +1000,12 @@ impl Default for WindowProperties {
 }
 
 impl Window {
-	pub fn new(title: &str, width: i32, height: i32, properties: &WindowProperties) -> Result<Self, String> {
+	pub fn new(
+		title: &str,
+		width: i32,
+		height: i32,
+		properties: &WindowProperties,
+	) -> Result<Self, String> {
 		{
 			static WINDOW_CREATED: Mutex<bool> = Mutex::new(false);
 			let guard = WINDOW_CREATED.lock();
@@ -1065,16 +1070,18 @@ impl Window {
 			sdl::gl_set_swap_interval(vsync.into());
 		}
 	}
-	
+
 	pub fn set_fullscreen(&mut self, fullscreen: bool) {
 		unsafe {
 			// i dont care if going fullscreen fails
-			let _ = sdl::set_window_fullscreen(self.sdlwin,
-			if fullscreen {
-				sdl::SDL_WINDOW_FULLSCREEN_DESKTOP
-			} else {
-				0
-			});
+			let _ = sdl::set_window_fullscreen(
+				self.sdlwin,
+				if fullscreen {
+					sdl::SDL_WINDOW_FULLSCREEN_DESKTOP
+				} else {
+					0
+				},
+			);
 		}
 	}
 

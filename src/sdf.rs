@@ -61,7 +61,7 @@ fn decode_hex(data: &str) -> Option<Vec<u8>> {
 	Some(bytes)
 }
 
-impl<T: Serialize + for <'a> Deserialize<'a>> ImportExport for T {
+impl<T: Serialize + for<'a> Deserialize<'a>> ImportExport for T {
 	fn export_string(&self) -> String {
 		let mut data: Vec<u8> = vec![];
 		// write errors should never happen
@@ -267,7 +267,6 @@ impl Default for R3ToR3 {
 	}
 }
 
-
 impl Default for R3ToR {
 	fn default() -> Self {
 		Self::Sphere(Constant::F32(1.0))
@@ -363,7 +362,7 @@ trait Function: Sized + Default + GenRandom + ImportExport {
 				}
 			}
 			let selected = functions.remove(closest);
-			
+
 			return selected.1;
 		}
 		// weird that rust thinks 1.. "might have zero elements to iterate on"

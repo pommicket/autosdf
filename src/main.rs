@@ -55,9 +55,14 @@ mod sdl;
 pub mod win;
 
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
-use std::{time::Instant, fs::File, io::{BufReader, prelude::*}, collections::HashMap};
-use win::ColorF32;
 use sdf::ImportExport;
+use std::{
+	collections::HashMap,
+	fs::File,
+	io::{prelude::*, BufReader},
+	time::Instant,
+};
+use win::ColorF32;
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -97,19 +102,18 @@ impl View {
 	fn pause(&mut self) {
 		self.time_speed = 0.0;
 	}
-	
+
 	fn paused(&self) -> bool {
 		self.time_speed == 0.0
 	}
-	
+
 	fn unpause(&mut self, rewind: bool) {
 		self.time_speed = if rewind { -1.0 } else { 1.0 };
 	}
-	
+
 	fn pass_time(&mut self, dt: f64) {
 		self.time += self.time_speed * dt;
 	}
-	
 
 	fn yaw_by(&mut self, yaw: f32) {
 		self.rotation *= Rot3::from_euler_angles(0.0, yaw, 0.0);
@@ -203,7 +207,7 @@ const TEST_WIDTH: u16 = 100;
 
 #[derive(Default)]
 struct Settings {
-	data: HashMap<String, f64>
+	data: HashMap<String, f64>,
 }
 
 impl Settings {
@@ -227,23 +231,21 @@ impl Settings {
 				data.insert(key.to_string(), value);
 			}
 		}
-		Ok(Self {
-			data
-		})
+		Ok(Self { data })
 	}
-	
+
 	fn get_f64(&self, key: &str) -> Option<f64> {
 		self.data.get(key).copied()
 	}
-	
+
 	fn get_f32(&self, key: &str) -> Option<f32> {
 		self.get_f64(key).map(|x| x as f32)
 	}
-	
+
 	fn get_usize(&self, key: &str) -> Option<usize> {
 		self.get_f64(key).map(|x| x as usize)
 	}
-	
+
 	fn get_i32(&self, key: &str) -> Option<i32> {
 		self.get_f64(key).map(|x| x as i32)
 	}
@@ -312,9 +314,9 @@ impl State {
 		window.set_buffer_data(&mut test_buffer, data);
 		let main_array = window.create_vertex_array(main_buffer, &programs.main);
 		let test_array = window.create_vertex_array(test_buffer, &programs.test);
-		
+
 		window.set_mouse_relative(true);
-		
+
 		let scene_list = File::options()
 			.append(true)
 			.create(true)
@@ -352,7 +354,7 @@ impl State {
 					// i dont really care if this fails, and it probably won't
 					let _ = list.write_all(string.as_bytes());
 				}
-				
+
 				// *technically speaking* the location of v_pos could change between reloads
 				self.window.array_attrib2f(&mut self.main_array, "v_pos", 0);
 				self.window.array_attrib2f(&mut self.test_array, "v_pos", 0);
@@ -383,8 +385,10 @@ impl State {
 					.select_nth_unstable_by(i, |a, b| a.total_cmp(b))
 					.1;
 				drop(sdf_values);
-				let mut initial_view = View::default();
-				initial_view.level_set = level_set;
+				let initial_view = View {
+					level_set,
+					..Default::default()
+				};
 				self.initial_view = initial_view.clone();
 				self.view = initial_view;
 			}
@@ -420,9 +424,7 @@ impl State {
 						}
 					}
 				}
-				KeyDown {
-					key: F, ..
-				} => {
+				KeyDown { key: F, .. } => {
 					self.fullscreen = !self.fullscreen;
 					self.window.set_fullscreen(self.fullscreen);
 				}
@@ -446,7 +448,10 @@ impl State {
 					}
 				}
 				KeyDown { key: N0, .. } => self.view = self.initial_view.clone(),
-				KeyDown { key: Space, modifier } => {
+				KeyDown {
+					key: Space,
+					modifier,
+				} => {
 					if !self.view.paused() {
 						self.view.pause();
 					} else if modifier.shift() {
@@ -456,7 +461,8 @@ impl State {
 					}
 				}
 				MouseMotion { xrel, yrel, .. } => {
-					let mouse_sensitivity = 0.001 * self.settings.get_f32("mouse-sensitivity").unwrap_or(50.0);
+					let mouse_sensitivity =
+						0.001 * self.settings.get_f32("mouse-sensitivity").unwrap_or(50.0);
 					self.view
 						.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
 					self.view
@@ -465,9 +471,9 @@ impl State {
 				_ => {}
 			}
 		}
-		
+
 		self.view.pass_time(frame_dt.into());
-		
+
 		{
 			// movement
 			let mut dx = 0.0;
@@ -476,8 +482,7 @@ impl State {
 			let mut dl = 0.0;
 			let window = &self.window;
 			use win::Key::*;
-			
-			
+
 			if window.any_key_down(&[W, Up]) {
 				dz -= 1.0;
 			}
@@ -525,14 +530,26 @@ impl State {
 		window.use_program(&self.programs.main);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
 		window.uniform1f("u_time", view.time as f32);
-		window.uniform1f("u_fov", self.settings.get_f32("fov").unwrap_or(45.0).to_radians());
-		window.uniform1f("u_focal_length", self.settings.get_f32("focal-length").unwrap_or(1.0));
+		window.uniform1f(
+			"u_fov",
+			self.settings.get_f32("fov").unwrap_or(45.0).to_radians(),
+		);
+		window.uniform1f(
+			"u_focal_length",
+			self.settings.get_f32("focal-length").unwrap_or(1.0),
+		);
 		window.uniform1f("u_level_set", view.level_set);
 		window.uniform1i("u_hsv", self.settings.get_i32("hsv").unwrap_or(0));
 		let antialiasing = self.settings.get_i32("antialiasing").unwrap_or(1);
 		window.uniform2i("u_antialiasing", antialiasing, antialiasing);
-		window.uniform1i("u_iterations", self.settings.get_i32("max-iterations").unwrap_or(30));
-		window.uniform1f("u_distance_threshold", self.settings.get_f32("distance-threshold").unwrap_or(0.02));
+		window.uniform1i(
+			"u_iterations",
+			self.settings.get_i32("max-iterations").unwrap_or(30),
+		);
+		window.uniform1f(
+			"u_distance_threshold",
+			self.settings.get_f32("distance-threshold").unwrap_or(0.02),
+		);
 		window.uniform3x3f("u_rotation", view.rotation().as_slice());
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
 
@@ -548,8 +565,8 @@ impl State {
 }
 
 fn try_main() -> Result<(), String> {
-	let settings = Settings::load("settings.txt").map_err(|e|
-		format!("Error loading settings.txt: {e}"))?;
+	let settings =
+		Settings::load("settings.txt").map_err(|e| format!("Error loading settings.txt: {e}"))?;
 	let mut state = State::new(settings)?;
 	while state.frame() {}
 
