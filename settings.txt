@@ -21,3 +21,7 @@ focal-length 1
 fov 45
 #    set this to 1 to use HSV instead of RGB for color
 hsv 0
+#    framerate cap.
+#    by default, vsync is enabled, so you don't need to change this unless you want
+#    to run at an even lower framerate than your monitor's refresh rate
+max-framerate 1000

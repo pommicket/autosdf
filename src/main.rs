@@ -1,7 +1,5 @@
 /*
 @TODO:
-- options for:
-	- max framerate
 - come up with twisty lipschitz continuous function, & add it
 - (slightly) more interesting constants
 - Params instead of depth for GenRandom
@@ -418,6 +416,15 @@ impl State {
 	
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
+		if let Some(max_framerate) = self.settings.get_f32("max-framerate") {
+			if max_framerate > 0.0 {
+				let dt = self.frame_time.elapsed().as_secs_f32();
+				let sleep_millis = 1000.0 * (1.0 / max_framerate - dt);
+				if sleep_millis >= 1.0 {
+					std::thread::sleep(std::time::Duration::from_millis(sleep_millis as u64));
+				}
+			}
+		}
 		let frame_dt = self.frame_time.elapsed().as_secs_f32();
 		self.frame_time = Instant::now();
 
