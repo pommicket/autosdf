@@ -545,7 +545,7 @@ impl R3ToR3 {
 
 pub struct SceneConfig {
 	pub sdf_max_depth: isize,
-	pub color_max_depth: isize
+	pub color_max_depth: isize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -578,7 +578,7 @@ impl Scene {
 		let bytes = decode_hex(s)?;
 		serde_cbor::from_reader(&bytes[..]).ok()?
 	}
-	
+
 	pub fn good_random(rng: &mut impl Rng, config: &SceneConfig) -> Self {
 		let sdf = R3ToR::good_random(rng, config.sdf_max_depth);
 		let color_function = R3ToR3::good_random(rng, config.color_max_depth);

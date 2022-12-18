@@ -13,5 +13,5 @@ vec4 rand(vec2 coord) {
 }
 
 void main() {
-	gl_FragColor = vec4(rand(pos));//sdf(8.0 * rand(pos).xyz - 4.0));
+	gl_FragColor = vec4(sdf(8.0 * rand(pos).xyz - 4.0));
 }

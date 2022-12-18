@@ -327,7 +327,7 @@ impl KeyModifier {
 	pub fn numlock(&self) -> bool {
 		self.numlock
 	}
-	
+
 	fn from_sdl(keymod: u16) -> Self {
 		Self {
 			lctrl: (keymod & sdl::KMOD_LCTRL) != 0,
@@ -349,11 +349,11 @@ pub enum Event {
 	Quit,
 	KeyDown {
 		key: Key,
-		modifier: KeyModifier
+		modifier: KeyModifier,
 	},
 	KeyUp {
 		key: Key,
-		modifier: KeyModifier
+		modifier: KeyModifier,
 	},
 	MouseMotion {
 		x: i32,
@@ -374,8 +374,10 @@ pub fn display_error_message(message: &str) {
 
 /// `Color` trait for dealing with opengl
 ///
-/// this trait is unsafe because putting the wrong value for the constants may
-/// result in bad memory reads/writes.
+/// # Safety
+/// Putting the wrong value for the constants may
+/// result in bad memory reads/writes. Specifically, you must ensure that
+/// the `Color` object is what OpenGL expects for the given format and type.
 ///
 /// ideally we'd have `GL_INTERNAL_FORMAT` as well, but `glGetTexImage` doesn't have it,
 /// so best not to.
@@ -799,8 +801,7 @@ impl Texture {
 		let width: GLsizei = width.try_into().map_err(|_| "width too large")?;
 		let height: GLsizei = height.try_into().map_err(|_| "height too large")?;
 		let expected_len = width * height;
-		
-		
+
 		let ptr = match data {
 			Some(data) => {
 				if data.len() as GLsizei != expected_len {
@@ -811,10 +812,10 @@ impl Texture {
 					));
 				}
 				data.as_ptr()
-			},
-			None => std::ptr::null()
+			}
+			None => std::ptr::null(),
 		};
-		
+
 		let params = &self.params;
 		self.bind();
 		gl::TexImage2D(
@@ -1041,16 +1042,10 @@ impl Window {
 			audio_data: None,
 		})
 	}
-	
+
 	pub fn set_vsync(&mut self, vsync: bool) {
 		unsafe {
-			sdl::gl_set_swap_interval(
-				if vsync {
-					1
-				} else {
-					0
-				}
-			);
+			sdl::gl_set_swap_interval(vsync.into());
 		}
 	}
 
@@ -1221,7 +1216,7 @@ impl Window {
 		unsafe { texture.set_data(Some(data), width, height) }?;
 		Ok(())
 	}
-	
+
 	/// sets texture width + height but not data.
 	///
 	/// NOTE: you must still specify the color type!
@@ -1442,11 +1437,11 @@ impl Window {
 	pub fn swap(&mut self) {
 		unsafe { sdl::gl_swap_window(self.sdlwin) };
 	}
-	
+
 	pub fn get_clipboard_text(&mut self) -> Result<String, String> {
 		unsafe { sdl::get_clipboard_text() }
 	}
-	
+
 	pub fn set_clipboard_text(&mut self, s: &str) -> Result<(), String> {
 		unsafe { sdl::set_clipboard_text(s) }
 	}
