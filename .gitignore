@@ -5,3 +5,5 @@ tags
 *.dll
 *.lib
 scenes.txt
+autosdf
+*.zip

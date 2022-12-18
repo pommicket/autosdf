@@ -1,5 +1,7 @@
 /*
 @TODO:
+- remove cmd window on windows
+- exe & window icon
 - options for:
 	- max framerate
 - [ and ] to move through time

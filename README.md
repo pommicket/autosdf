@@ -1,6 +1,6 @@
 # AutoSDF
 
-procedurally generated signed distance fields
+procedurally generated signed distance functions
 
 ![a screenshot from AutoSDF](example3.png)
 
