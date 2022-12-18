@@ -492,6 +492,23 @@ unsafe impl Color for ColorF32 {
 	const GL_TYPE: GLenum = gl::FLOAT;
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct ColorGrayscaleF32 {
+	pub value: f32
+}
+
+impl ColorGrayscaleF32 {
+	pub const fn new(value: f32) -> Self {
+		Self { value }
+	}
+}
+
+unsafe impl Color for ColorGrayscaleF32 {
+	const GL_FORMAT: GLenum = gl::RED;
+	const GL_TYPE: GLenum = gl::FLOAT;
+}
+
 pub struct Shader {
 	id: GLuint,
 	/// shaders should not be sent across threads because of the drop function.

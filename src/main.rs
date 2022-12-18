@@ -6,10 +6,7 @@
 - options for:
 	- max framerate
 - [ and ] to move through time
-- switch framebuffer texture to grayscale
-- show that   θ = σ(z) / sqrt(x² + y²)
-			  (x,y,z) → (x cosθ + y sinθ, y cosθ - x sinθ, z)
-  is lipschitz continuous, & add it
+- come up with twisty lipschitz continuous function, & add it
 - feedback for copy/paste (flash screen or something)
 - feedback for pause/unpause/rewind (flash icons)
 - Params instead of depth for GenRandom
@@ -62,7 +59,7 @@ use std::{
 	io::{prelude::*, BufReader},
 	time::Instant,
 };
-use win::ColorF32;
+use win::ColorGrayscaleF32;
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -283,11 +280,10 @@ impl State {
 		programs
 			.load_scene(&mut window, &scene)
 			.unwrap_or_else(|e| eprintln!("Error: {e}"));
-		//gen_program_from_string(&mut window, &mut program, "a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3ea4c00ca163463332fa3e85dc00a163463332fa3f2bbdaea167436f6d706f736583a166526f7461746583a163463332fa3f750dc2a163463332fa3f5a7f0ea163463332fa3f2df98ca1634d696e82a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3f7cc2a0a167436f6d706f736582684964656e74697479684964656e74697479a166537068657265a163463332fa3f26f8f6684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3f1bfed8a163463332fa3f1e1e30a163463332fa3eddc6b0a1634d697883a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3ea149ec684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f6b0018684964656e74697479a163463332fa3e60a8d8684964656e74697479684964656e74697479684964656e746974796e636f6c6f725f66756e6374696f6ea165537153696ea163463332fa3ebaa7ec")?;
 
 		let mut framebuffer_texture = window.create_texture(&Default::default());
 		// we don't really care if there's an error. not much bad will happen.
-		let _ = window.set_texture_no_data::<win::ColorF32>(
+		let _ = window.set_texture_no_data::<ColorGrayscaleF32>(
 			&mut framebuffer_texture,
 			TEST_WIDTH.into(),
 			TEST_HEIGHT.into(),
@@ -376,9 +372,9 @@ impl State {
 
 				let mut sdf_values: Vec<f32> = self
 					.window
-					.get_texture_data_vec::<ColorF32>(&self.framebuffer_texture)
+					.get_texture_data_vec::<ColorGrayscaleF32>(&self.framebuffer_texture)
 					.iter()
-					.map(|c| c.r)
+					.map(|c| c.value)
 					.collect();
 				let i = (sdf_values.len() as f64 * frac) as usize;
 				let level_set = *sdf_values
