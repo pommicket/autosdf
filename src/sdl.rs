@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 /// this module provides SDL type definitions, and more rust-y wrappers around
 /// SDL functions.
+
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
 use std::mem;
 
@@ -13,7 +14,8 @@ pub type SDL_bool = c_int;
 pub type SDL_EventType = u32;
 #[repr(C)]
 pub struct SDL_Window(u8);
-pub type SDL_SysWMmsg = c_void;
+#[repr(transparent)]
+pub struct SDL_SysWMmsg(c_void); // opaque type
 pub type SDL_Keycode = u32;
 pub type SDL_Scancode = i32;
 pub type SDL_JoystickID = i32;
@@ -27,6 +29,10 @@ pub type SDL_AudioDeviceID = u32;
 pub type SDL_WindowEventID = c_int;
 pub type SDL_GLContext = *mut SDL_GLContextData;
 pub type SDL_GLattr = c_int;
+#[repr(transparent)]
+pub struct SDL_BlitMap(c_void); // opaque type
+#[repr(transparent)]
+pub struct SDL_RWops(c_void); // for most purposes, you don't care about the internals of this struct
 
 pub const SDL_WINDOWPOS_UNDEFINED: c_int = 0x1FFF0000;
 pub const SDL_QUIT: SDL_EventType = 0x100;
@@ -646,6 +652,118 @@ pub struct SDL_AudioSpec {
 	pub userdata: *mut c_void,
 }
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SDL_Color {
+	r: u8,
+	g: u8,
+	b: u8,
+	a: u8,
+}
+
+pub type SDL_Colour = SDL_Color;
+
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SDL_Rect {
+	x: c_int,
+	y: c_int,
+	w: c_int,
+	h: c_int,
+}
+
+
+#[repr(C)]
+pub struct SDL_Palette {
+	ncolors: c_int,
+	colors: *mut SDL_Color,
+	version: u32,
+	refcount: c_int,
+}
+
+#[repr(C)]
+pub struct SDL_PixelFormat {
+	pub format: u32,
+	palette: *mut SDL_Palette,
+	pub BitsPerPixel: u8,
+	pub BytesPerPixel: u8,
+	pub padding: [u8; 2],
+	pub Rmask: u32,
+	pub Gmask: u32,
+	pub Bmask: u32,
+	pub Amask: u32,
+	pub Rloss: u8,
+	pub Gloss: u8,
+	pub Bloss: u8,
+	pub Aloss: u8,
+	pub Rshift: u8,
+	pub Gshift: u8,
+	pub Bshift: u8,
+	pub Ashift: u8,
+	pub refcount: c_int,
+	next: *mut SDL_PixelFormat,
+}
+
+impl SDL_PixelFormat {
+	fn palette(&self) -> &SDL_Palette {
+		// SAFETY: this should be a valid pointer as long as self is a valid SDL_PixelFormat
+		unsafe { &*self.palette }
+	}
+	fn next(&self) -> Option<&SDL_PixelFormat> {
+		if self.next.is_null() {
+			None
+		} else {
+			// SAFETY: this should be a valid pointer as long as self is a valid SDL_PixelFormat
+			Some(unsafe { &*self.next })
+		}
+	}
+}
+
+#[repr(C)]
+pub struct SDL_Surface {
+	flags: u32,
+	format: *mut SDL_PixelFormat,
+	w: c_int,
+	h: c_int,
+	pitch: c_int,
+	pub pixels: *mut c_void,
+	pub userdata: *mut c_void,
+	locked: c_int,
+	list_blitmap: *mut c_void,
+	clip_rect: SDL_Rect,
+	map: *mut SDL_BlitMap,
+	refcount: c_int,
+}
+
+impl SDL_Surface {
+	pub fn flags(&self) -> u32 {
+		self.flags
+	}
+	pub fn width(&self) -> i32 {
+		self.w.try_into().unwrap()
+	}
+	pub fn height(&self) -> i32 {
+		self.h.try_into().unwrap()
+	}
+	pub fn pitch(&self) -> i32 {
+		self.pitch.try_into().unwrap()
+	}
+	pub fn locked(&self) -> i32 {
+		self.locked.try_into().unwrap()
+	}
+	pub fn pixel_format(&self) -> &SDL_PixelFormat {
+		// SAFETY: this should be a valid pointer as long as self is a valid SDL_Surface
+		unsafe { &*self.format }
+	}
+	pub fn clip_rect(&self) -> SDL_Rect {
+		self.clip_rect
+	}
+	pub fn size(&self) -> (i32, i32) {
+		(self.width(), self.height())
+	}
+}
+
 impl SDL_AudioSpec {
 	pub fn new(
 		callback: SDL_AudioCallback,
@@ -665,6 +783,34 @@ impl SDL_AudioSpec {
 			silence: 0,
 			size: 0,
 		}
+	}
+}
+
+pub struct Surface {
+	ptr: *mut SDL_Surface
+}
+
+impl Surface {
+	/// Returns `None` if `ptr` is null. 
+	/// # Safety
+	/// You may only call this function if `ptr` refers to a valid `SDL_Surface`
+	/// which can be freed with `SDL_FreeSurface`.
+	/// Make sure you only create one `Surface` for any particular surface pointer.
+	/// When the `Surface` is dropped, the `SDL_Surface` pointer will be freed.
+	pub unsafe fn from_raw(ptr: *mut SDL_Surface) -> Option<Self> {
+		if ptr.is_null() {
+			None
+		} else {
+			Some(Self { ptr })
+		}
+	}
+}
+
+impl Drop for Surface {
+	fn drop(&mut self) {
+		// SAFETY: this should only be constructed with a valid SDL surface pointer,
+		// and the pointer should never be freed by anything else.
+		unsafe { SDL_FreeSurface(self.ptr) };
 	}
 }
 
@@ -694,6 +840,7 @@ extern "C" {
 	fn SDL_SetWindowSize(window: *mut SDL_Window, w: c_int, h: c_int);
 	fn SDL_SetRelativeMouseMode(enabled: SDL_bool) -> c_int;
 	fn SDL_GetError() -> *const c_char;
+	fn SDL_SetWindowIcon(window: *mut SDL_Window, icon: *mut SDL_Surface);
 	fn SDL_SetHint(name: *const c_char, value: *const c_char) -> SDL_bool;
 	fn SDL_GL_SetAttribute(attr: SDL_GLattr, value: c_int);
 	fn SDL_GL_SetSwapInterval(interval: c_int) -> c_int;
@@ -716,7 +863,11 @@ extern "C" {
 	fn SDL_GetClipboardText() -> *mut c_char;
 	fn SDL_SetClipboardText(text: *const c_char) -> c_int;
 	fn SDL_SetWindowFullscreen(window: *mut SDL_Window, flags: u32) -> c_int;
+	fn SDL_LoadBMP(file: *const c_char) -> *mut SDL_Surface;
 	fn SDL_free(mem: *mut c_void);
+	fn SDL_FreeSurface(surface: *mut SDL_Surface);
+	fn SDL_RWFromFile(file: *const c_char, mode: *const c_char) -> *mut SDL_RWops;
+	fn SDL_LoadBMP_RW(src: *mut SDL_RWops, freesrc: c_int) -> *mut SDL_Surface;
 }
 
 pub mod scancode {
@@ -1181,4 +1332,18 @@ pub unsafe fn set_window_fullscreen(win: *mut SDL_Window, flags: u32) -> Result<
 	} else {
 		Err(get_err())
 	}
+}
+
+pub unsafe fn load_bmp(filename: &str) -> Result<Surface, String> {
+	let Ok(cstring) = CString::new(filename) else {
+		return Err("filename contains null bytes.".to_string());
+	};
+	// note: this is how SDL_LoadBMP is #defined in SDL_surface.h
+	let rwops = SDL_RWFromFile(cstring.as_ptr(), b"rb\0".as_ptr().cast());
+	let raw = SDL_LoadBMP_RW(rwops, 1);
+	Surface::from_raw(raw).ok_or_else(|| get_err())
+}
+
+pub unsafe fn set_window_icon(win: *mut SDL_Window, icon: &Surface) {
+	SDL_SetWindowIcon(win, icon.ptr);
 }

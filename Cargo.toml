@@ -14,3 +14,6 @@ serde = "1.0.150"
 serde_derive = "1.0.150"
 gl = "0.14.0"
 nalgebra = "0.31.4"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"

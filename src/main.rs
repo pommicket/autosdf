@@ -1,6 +1,7 @@
 /*
 @TODO:
 - publish git repo
+- replace *mut SDL_Window with Window
 - exe & window icon
 - options for:
 	- max framerate
@@ -271,6 +272,7 @@ impl State {
 	fn new(settings: Settings) -> Result<Self, String> {
 		let mut window = win::Window::new("AutoSDF", 1280, 720, &Default::default())
 			.map_err(|e| format!("Error creating window: {e}"))?;
+		window.set_icon("icon.bmp");
 		let mut programs = Programs::new(&mut window);
 		let config = sdf::SceneConfig {
 			sdf_length: settings.get_usize("sdf-length").unwrap_or(500),
@@ -477,7 +479,7 @@ impl State {
 			let mut dz = 0.0;
 			let mut dl = 0.0;
 			let mut dt = 0.0;
-			
+
 			let window = &self.window;
 			use win::Key::*;
 
@@ -514,7 +516,7 @@ impl State {
 			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
 			speed_multiplier *= if window.is_ctrl_down() { 0.1 } else { 1.0 };
 			speed_multiplier *= frame_dt;
-			
+
 			if dt != 0.0 {
 				let dt = dt * speed_multiplier;
 				self.view.pause();

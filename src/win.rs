@@ -579,7 +579,7 @@ unsafe impl Color for ColorF32 {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ColorGrayscaleF32 {
-	pub value: f32
+	pub value: f32,
 }
 
 impl ColorGrayscaleF32 {
@@ -1184,6 +1184,14 @@ impl Window {
 					0
 				},
 			);
+		}
+	}
+	
+	pub fn set_icon(&mut self, bmp_filename: &str) {
+		unsafe {
+			if let Ok(icon) = sdl::load_bmp(bmp_filename) {
+				sdl::set_window_icon(self.sdlwin, &icon);
+			}
 		}
 	}
 
