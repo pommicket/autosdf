@@ -1,3 +1,4 @@
+cargo build --release
 del autosdf-windows.zip
 rd /s/q autosdf
 mkdir autosdf
