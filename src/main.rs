@@ -1,5 +1,6 @@
 /*
 @TODO:
+- publish git repo
 - remove cmd window on windows
 - exe & window icon
 - options for:
