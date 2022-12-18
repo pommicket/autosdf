@@ -18,7 +18,7 @@ macro_rules! write_str {
 /// these are constant across 3D space, not across time/user input/etc.
 #[derive(Debug, GenRandom, Serialize, Deserialize)]
 pub enum Constant {
-	#[prob(0.5)]
+	#[prob(0.0)]
 	F32(f32),
 	#[prob(0.5)]
 	Time(

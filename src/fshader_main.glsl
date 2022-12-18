@@ -11,6 +11,14 @@ uniform float u_distance_threshold;
 uniform int u_hsv;
 uniform ivec2 u_antialiasing;
 uniform int u_iterations;
+uniform float u_aspect_ratio;
+uniform vec4 u_flash;
+uniform int u_flash_icon;
+
+#define ICON_COPY 1
+#define ICON_PLAY 2
+#define ICON_PAUSE 3
+#define ICON_REWIND 4
 
 %COMMON%
 %SDF%
@@ -52,14 +60,21 @@ float sdf_adjusted(vec3 p) {
 
 vec3 normal(vec3 p)
 {
-// thanks to https://iquilezles.org/articles/normalsSDF/
-    float h = 0.0001;
-    vec2 k = vec2(1.,-1.);
-    vec3 sdf_normal = k.xyy*sdf(p + k.xyy*h) + 
-                      k.yyx*sdf(p + k.yyx*h) + 
-                      k.yxy*sdf(p + k.yxy*h) + 
-                      k.xxx*sdf(p + k.xxx*h);
-    return normalize(sdf_normal);
+	// thanks to https://iquilezles.org/articles/normalsSDF/
+	float h = 0.0001;
+	vec2 k = vec2(1.,-1.);
+	vec3 sdf_normal = k.xyy*sdf(p + k.xyy*h) + 
+	              k.yyx*sdf(p + k.yyx*h) + 
+	              k.yxy*sdf(p + k.yxy*h) + 
+	              k.xxx*sdf(p + k.xxx*h);
+	return normalize(sdf_normal);
+}
+
+bool play_icon(vec2 pos) {
+	vec2 a = abs(pos);
+	if (a.x >= 0.5 || a.y >= 0.5)
+		return false;
+	return a.y < 0.25 + 0.5 * pos.x;
 }
 
 void main() {
@@ -76,8 +91,8 @@ void main() {
 	p += u_translation;
 	if (sdf(p) < 0.0) {
 		// looking inside object
-		gl_FragColor = vec4(get_color(p), 1.0);
-		return;
+		final_color += get_color(p);
+		continue;
 	}
 	int i;
 	for (i = 0; i < ITERATIONS; i++) {
@@ -112,5 +127,25 @@ void main() {
 	}
 	}
 	final_color *= 1.0 / (AA_X * AA_Y);
+	bool icon = false;
+	switch (u_flash_icon) {
+	case 0: break;
+	case ICON_COPY:
+		icon = abs(pos.x) > u_aspect_ratio - 0.1 || abs(pos.y) > 0.9;
+		break;
+	case ICON_PLAY:
+		icon = play_icon(pos);
+		break;
+	case ICON_REWIND:
+		icon = play_icon(vec2(-pos.x, pos.y));
+		break;
+	case ICON_PAUSE:
+		vec2 p = abs(pos);
+		icon = p.x >= 0.1 && p.x <= 0.4 && p.y <= 0.5;
+		break;
+	}
+	if (icon)
+		final_color = mix(final_color, u_flash.xyz, u_flash.w);
+	
 	gl_FragColor = vec4(final_color, 1.0);
 }

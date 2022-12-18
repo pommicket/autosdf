@@ -560,7 +560,11 @@ impl From<u32> for ColorU8 {
 }
 
 impl ColorF32 {
-	pub const BLACK: Self = Self::rgb(0.0, 0.0, 0.0);
+	pub const BLACK: Self = Self::gray(0.0);
+	pub const WHITE: Self = Self::gray(1.0);
+	pub const RED: Self = Self::rgb(1.0, 0.0, 0.0);
+	pub const GREEN: Self = Self::rgb(0.0, 1.0, 0.0);
+	pub const BLUE: Self = Self::rgb(0.0, 0.0, 1.0);
 
 	pub const fn rgb(r: f32, g: f32, b: f32) -> Self {
 		ColorF32 { r, g, b, a: 1.0 }
@@ -568,6 +572,10 @@ impl ColorF32 {
 
 	pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
 		ColorF32 { r, g, b, a }
+	}
+	
+	pub const fn gray(value: f32) -> Self {
+		Self::rgb(value, value, value)
 	}
 }
 
@@ -1533,6 +1541,10 @@ impl Window {
 	pub fn uniform4f_slice(&mut self, name: &str, xyzw: &[f32]) {
 		assert_eq!(xyzw.len(), 4);
 		self.uniform4f(name, xyzw[0], xyzw[1], xyzw[2], xyzw[3])
+	}
+	
+	pub fn uniform4f_color(&mut self, name: &str, color: ColorF32) {
+		self.uniform4f(name, color.r, color.g, color.b, color.a);
 	}
 
 	pub fn uniform3x3f(&mut self, name: &str, matrix: &[f32]) {

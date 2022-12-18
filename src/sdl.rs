@@ -786,33 +786,6 @@ impl SDL_AudioSpec {
 	}
 }
 
-pub struct Surface {
-	ptr: *mut SDL_Surface
-}
-
-impl Surface {
-	/// Returns `None` if `ptr` is null. 
-	/// # Safety
-	/// You may only call this function if `ptr` refers to a valid `SDL_Surface`
-	/// which can be freed with `SDL_FreeSurface`.
-	/// Make sure you only create one `Surface` for any particular surface pointer.
-	/// When the `Surface` is dropped, the `SDL_Surface` pointer will be freed.
-	pub unsafe fn from_raw(ptr: *mut SDL_Surface) -> Option<Self> {
-		if ptr.is_null() {
-			None
-		} else {
-			Some(Self { ptr })
-		}
-	}
-}
-
-impl Drop for Surface {
-	fn drop(&mut self) {
-		// SAFETY: this should only be constructed with a valid SDL surface pointer,
-		// and the pointer should never be freed by anything else.
-		unsafe { SDL_FreeSurface(self.ptr) };
-	}
-}
 
 #[link(name = "SDL2", kind = "dylib")]
 extern "C" {
@@ -1122,8 +1095,38 @@ pub mod scancode {
 	pub const NUM_SCANCODES: SDL_Scancode = 512;
 }
 
-fn cstring(s: &str) -> Result<CString, String> {
-	CString::new(s).map_err(|e| format!("{e}"))
+pub struct Surface {
+	ptr: *mut SDL_Surface
+}
+
+impl Surface {
+	/// Returns `None` if `ptr` is null. 
+	/// # Safety
+	/// You may only call this function if `ptr` refers to a valid `SDL_Surface`
+	/// which can be freed with `SDL_FreeSurface`.
+	/// Make sure you only create one `Surface` for any particular surface pointer.
+	/// When the `Surface` is dropped, the `SDL_Surface` pointer will be freed.
+	pub unsafe fn from_raw(ptr: *mut SDL_Surface) -> Option<Self> {
+		if ptr.is_null() {
+			None
+		} else {
+			Some(Self { ptr })
+		}
+	}
+	
+	/// # Safety
+	/// It is your responsibility to use the pointer *before* dropping this `Surface`.
+	pub unsafe fn get_raw(&self) -> *mut SDL_Surface {
+		self.ptr
+	}
+}
+
+impl Drop for Surface {
+	fn drop(&mut self) {
+		// SAFETY: this should only be constructed with a valid SDL surface pointer,
+		// and the pointer should never be freed by anything else.
+		unsafe { SDL_FreeSurface(self.ptr) };
+	}
 }
 
 unsafe fn get_err() -> String {
@@ -1141,7 +1144,9 @@ pub unsafe fn create_window(
 	height: i32,
 	flags: u32,
 ) -> Result<*mut SDL_Window, String> {
-	let tstr = cstring(title)?;
+	let Ok(tstr) = CString::new(title) else {
+		return Err("window title cannot contain null bytes".to_string())
+	};
 	let window = SDL_CreateWindow(
 		tstr.as_ptr(),
 		SDL_WINDOWPOS_UNDEFINED,
@@ -1193,8 +1198,8 @@ pub unsafe fn init() -> Result<(), String> {
 
 pub unsafe fn set_hint(hint: &str, value: &str) {
 	// NOTE: hint,value are probably string literals, so cstring is very unlikely to fail
-	if let Ok(hstr) = cstring(hint) {
-		if let Ok(vstr) = cstring(value) {
+	if let Ok(hstr) = CString::new(hint) {
+		if let Ok(vstr) = CString::new(value) {
 			SDL_SetHint(hstr.as_ptr(), vstr.as_ptr());
 		}
 	}
@@ -1210,7 +1215,7 @@ pub unsafe fn gl_set_context_version(major: i32, minor: i32) {
 }
 
 pub unsafe fn gl_get_proc_address(name: &str) -> *const std::os::raw::c_void {
-	match cstring(name) {
+	match CString::new(name) {
 		Ok(cstr) => SDL_GL_GetProcAddress(cstr.as_ptr()),
 		Err(_) => 0 as _,
 	}
@@ -1246,8 +1251,8 @@ pub unsafe fn show_simple_message_box(
 	message: &str,
 	window: *mut SDL_Window,
 ) -> Result<(), String> {
-	let tstr = cstring(title)?;
-	let mstr = cstring(message)?;
+	let tstr = CString::new(title).unwrap_or_else(|_| CString::new("bad title").unwrap());
+	let mstr = CString::new(message).unwrap_or_else(|_| CString::new("bad message").unwrap());
 	SDL_ShowSimpleMessageBox(flags, tstr.as_ptr(), mstr.as_ptr(), window);
 	Ok(())
 }

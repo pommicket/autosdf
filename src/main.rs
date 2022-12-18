@@ -1,12 +1,9 @@
 /*
 @TODO:
-- publish git repo
-- replace *mut SDL_Window with Window
 - options for:
 	- max framerate
 - come up with twisty lipschitz continuous function, & add it
-- feedback for copy/paste (flash screen or something)
-- feedback for pause/unpause/rewind (flash icons)
+- (slightly) more interesting constants
 - Params instead of depth for GenRandom
    - allow multiple endpoints (cube & sphere & ...)
 - let user go back&forth through past sdfs using scenes.txt file
@@ -59,12 +56,22 @@ use std::{
 	io::{prelude::*, BufReader},
 	time::Instant,
 };
-use win::ColorGrayscaleF32;
+use win::{ColorGrayscaleF32, ColorF32};
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
 type Mat4 = Matrix4<f32>;
 type Rot3 = Rotation3<f32>;
+
+#[repr(i32)]
+#[derive(Clone, Copy)]
+enum Icon {
+	None = 0,
+	Copy = 1,
+	Play = 2,
+	Pause = 3,
+	Rewind = 4
+}
 
 #[derive(Clone)]
 struct View {
@@ -265,6 +272,9 @@ struct State {
 	framebuffer: win::Framebuffer,
 	main_array: win::VertexArray,
 	test_array: win::VertexArray,
+	// displayed on top of the screen. used for feedback when copying/pasting/etc
+	flash: ColorF32,
+	flash_icon: Icon,
 }
 
 impl State {
@@ -336,6 +346,8 @@ impl State {
 			test_array,
 			scene_list,
 			settings,
+			flash: ColorF32::rgba(0.0, 0.0, 0.0, 0.0),
+			flash_icon: Icon::None,
 		};
 		me.load_scene(scene);
 		Ok(me)
@@ -395,6 +407,15 @@ impl State {
 		};
 	}
 
+	fn flash(&mut self, icon: Icon) {
+		self.flash = match icon {
+			Icon::None => ColorF32::BLACK,
+			Icon::Copy => ColorF32::GREEN,
+			_ => ColorF32::rgb(1.0,0.5,0.0),
+		};
+		self.flash_icon = icon;
+	}
+	
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
 		let frame_dt = self.frame_time.elapsed().as_secs_f32();
@@ -420,6 +441,7 @@ impl State {
 							eprintln!("couldn't copy text to clipboard: {e}")
 						}
 					}
+					self.flash(Icon::Copy);
 				}
 				KeyDown { key: F, .. } => {
 					self.fullscreen = !self.fullscreen;
@@ -451,10 +473,13 @@ impl State {
 				} => {
 					if !self.view.paused() {
 						self.view.pause();
+						self.flash(Icon::Pause);
 					} else if modifier.shift() {
 						self.view.unpause(true);
+						self.flash(Icon::Play);
 					} else {
 						self.view.unpause(false);
+						self.flash(Icon::Rewind);
 					}
 				}
 				MouseMotion { xrel, yrel, .. } => {
@@ -564,6 +589,14 @@ impl State {
 		);
 		window.uniform3x3f("u_rotation", view.rotation().as_slice());
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
+		window.uniform4f_color("u_flash", self.flash);
+		window.uniform1i("u_flash_icon", self.flash_icon as i32);
+		
+		self.flash.a = f32::max(self.flash.a - frame_dt * (2.0 - 1.0 * self.flash.a), 0.0);
+		if self.flash.a <= 0.0 {
+			// icon is no longer visible
+			self.flash_icon = Icon::None;
+		}
 
 		window.draw_array(&self.main_array);
 
