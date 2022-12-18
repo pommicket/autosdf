@@ -14,12 +14,14 @@ you can also reduce `max-iterations` and increase `distance-threshold` if it's s
 - R to create a new SDF - use this a lot! most SDFs are boring!
 - Space to "unpause time" (start animating). On some SDFs this might not do much.
   Press space again to pause time, and shift+space to rewind time.
+- [ and ] to go forwards and backwards in time
 - 0 to reset location + time
 - =/- (equals/minus) to expand/contract the surface (change the "level set" of the SDF you're looking at)
 - Ctrl+C to copy SDF to clipboard, Ctrl+V to paste SDF from clipboard. On Linux
   if you close the application the clipboard contents will be lost (thanks a lot X11).
 - F to go fullscreen
 - Escape to quit
+- You can use Shift to move faster and Ctrl to move slower.
 
 ## saving SDFs
 

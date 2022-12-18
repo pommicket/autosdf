@@ -1,7 +1,6 @@
 /*
 @TODO:
 - publish git repo
-- remove cmd window on windows
 - exe & window icon
 - options for:
 	- max framerate
@@ -17,7 +16,7 @@
 - GenRandom integers (+ gen_random_scale_bias)
 - record a video
 - better SDL api: Context  +  Window<'a> impl !Send+!Sync
-
+- gallery view
 -----
 cool seeds:
 commit ae29a61c9917da5ad9fbb7a24151bff506669ffb "cool stuff"
@@ -45,6 +44,7 @@ a263736466a167436f6d706f736583a1695472616e736c61746583a163463332fa3f4811e4a16346
 
 //  LICENSE: i'm not gonna sue you for "copyright infringement". go wild.
 
+#![windows_subsystem = "windows"]
 extern crate nalgebra;
 
 pub mod sdf;
@@ -476,6 +476,8 @@ impl State {
 			let mut dy = 0.0;
 			let mut dz = 0.0;
 			let mut dl = 0.0;
+			let mut dt = 0.0;
+			
 			let window = &self.window;
 			use win::Key::*;
 
@@ -503,19 +505,32 @@ impl State {
 			if window.any_key_down(&[Minus]) {
 				dl -= 1.0;
 			}
+			if window.any_key_down(&[LeftBracket]) {
+				dt -= 1.0;
+			}
+			if window.any_key_down(&[RightBracket]) {
+				dt += 1.0;
+			}
 			let mut speed_multiplier = if window.is_shift_down() { 10.0 } else { 1.0 };
 			speed_multiplier *= if window.is_ctrl_down() { 0.1 } else { 1.0 };
+			speed_multiplier *= frame_dt;
+			
+			if dt != 0.0 {
+				let dt = dt * speed_multiplier;
+				self.view.pause();
+				self.view.time += f64::from(dt);
+			}
 
 			let motion = Vec3::new(dx, dy, dz);
 			if let Some(motion) = motion.try_normalize(0.001) {
-				let move_speed = 4.0 * speed_multiplier;
-				let motion = motion * frame_dt * move_speed;
+				let move_amount = 4.0 * speed_multiplier;
+				let motion = motion * move_amount;
 				let motion = self.view.rotation() * motion;
 				self.view.pos += motion;
 			}
 
-			let level_set_speed = 1.0 * speed_multiplier;
-			self.view.level_set += dl * frame_dt * level_set_speed;
+			let level_set_amount = 1.0 * speed_multiplier;
+			self.view.level_set += dl * level_set_amount;
 		}
 
 		let window = &mut self.window;

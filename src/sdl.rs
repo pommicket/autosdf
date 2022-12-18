@@ -671,6 +671,7 @@ impl SDL_AudioSpec {
 #[link(name = "SDL2", kind = "dylib")]
 extern "C" {
 	fn SDL_Init(flags: u32) -> c_int;
+	fn SDL_SetMainReady();
 	fn SDL_CreateWindow(
 		title: *const c_char,
 		x: c_int,
@@ -977,6 +978,10 @@ fn cstring(s: &str) -> Result<CString, String> {
 unsafe fn get_err() -> String {
 	let cstr = CStr::from_ptr(SDL_GetError());
 	String::from_utf8_lossy(cstr.to_bytes()).to_string()
+}
+
+pub unsafe fn set_main_ready() {
+	SDL_SetMainReady();
 }
 
 pub unsafe fn create_window(
