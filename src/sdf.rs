@@ -6,6 +6,7 @@ extern crate serde_cbor;
 use gen_random::GenRandom;
 use gen_random_proc_macro::GenRandom;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter, Write};
 
@@ -26,6 +27,53 @@ pub enum Constant {
 		f32,
 		f32,
 	),
+}
+
+pub trait ImportExport: Sized {
+	fn export_string(&self) -> String;
+	/// returns None if `s` is not a valid string
+	fn import_string(s: &str) -> Option<Self>;
+}
+
+/// encode `data` in hexadecimal
+fn encode_hex(data: &[u8]) -> String {
+	let mut s = String::with_capacity(data.len() * 2);
+	for byte in data {
+		write_str!(s, "{byte:02x}");
+	}
+	s
+}
+
+/// decode `data` from hexadecimal.
+/// returns None if this isn't a valid hexadecimal string.
+fn decode_hex(data: &str) -> Option<Vec<u8>> {
+	let data = data.trim();
+	if data.len() % 2 != 0 {
+		return None;
+	}
+
+	let mut bytes = Vec::with_capacity(data.len() / 2);
+	for i in 0..data.len() / 2 {
+		let s = data.get(2 * i..2 * i + 2)?;
+		let byte = u8::from_str_radix(s, 16).ok()?;
+		bytes.push(byte);
+	}
+	Some(bytes)
+}
+
+impl<T: Serialize + for <'a> Deserialize<'a>> ImportExport for T {
+	fn export_string(&self) -> String {
+		let mut data: Vec<u8> = vec![];
+		// write errors should never happen
+		// that said, we don't want to panic if for whatever reason this fails.
+		let _ = serde_cbor::to_writer(&mut data, self);
+		encode_hex(&data)
+	}
+
+	fn import_string(s: &str) -> Option<Self> {
+		let bytes = decode_hex(s)?;
+		serde_cbor::from_reader(&bytes[..]).ok()?
+	}
 }
 
 impl From<f32> for Constant {
@@ -207,6 +255,25 @@ impl R3ToR {
 	}
 }
 
+impl Default for RToR {
+	fn default() -> Self {
+		Self::Identity
+	}
+}
+
+impl Default for R3ToR3 {
+	fn default() -> Self {
+		Self::Identity
+	}
+}
+
+
+impl Default for R3ToR {
+	fn default() -> Self {
+		Self::Sphere(Constant::F32(1.0))
+	}
+}
+
 #[derive(Clone, Copy)]
 struct Variable {
 	id: u32,
@@ -250,7 +317,7 @@ impl fmt::Display for GLSLType {
 	}
 }
 
-trait Function: Sized + GenRandom {
+trait Function: Sized + Default + GenRandom + ImportExport {
 	/// appends `code` with glsl code to apply the function to the input variable.
 	/// returns the output variable.
 	#[must_use]
@@ -275,25 +342,39 @@ trait Function: Sized + GenRandom {
 		write_str!(code, "return {output};\n}}\n\n");
 	}
 
-	fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
-		// to make sure the function isn't too boring or too slow,
-		// we'll generate a bunch then take the one with the median code length.
-		let mut functions = vec![];
-		for _i in 0..20 {
-			let f = Self::gen_random_max_depth(rng, max_depth);
-			let mut code = String::new();
-			let mut var = VarCounter::new();
-			let _ = f.to_glsl(var.next(), &mut code, &mut var);
-			let len = code.len();
-
-			functions.push((len, f));
+	fn good_random(rng: &mut impl Rng, function_length: usize) -> Self {
+		let default_len = Self::default().export_string().len();
+		for max_depth in 1.. {
+			let mut functions = vec![];
+			for _i in 0..20 {
+				let f = Self::gen_random_max_depth(rng, max_depth);
+				let len = f.export_string().len().saturating_sub(default_len);
+				functions.push((len, f));
+			}
+			functions.sort_by_key(|&(len, _)| len);
+			if functions[functions.len() - 1].0 < function_length {
+				// max_depth isn't large enough to get functions of this complexity
+				continue;
+			}
+			let mut closest = 0;
+			for (i, (len, _)) in functions.iter().enumerate() {
+				if len.abs_diff(function_length) < functions[closest].0.abs_diff(function_length) {
+					closest = i;
+				}
+			}
+			let selected = functions.remove(closest);
+			
+			return selected.1;
 		}
-		functions.sort_by_key(|x| x.0);
-		functions.remove(functions.len() / 2).1
+		// weird that rust thinks 1.. "might have zero elements to iterate on"
+		// but technically this can happen if max_depth reaches usize::MAX
+		// i'm not really worried about that though
+		// we'd have much bigger problems before then.
+		panic!("wtf")
 	}
 
-	fn good_thread_random(max_depth: isize) -> Self {
-		Self::good_random(&mut rand::thread_rng(), max_depth)
+	fn good_thread_random(function_length: usize) -> Self {
+		Self::good_random(&mut rand::thread_rng(), function_length)
 	}
 }
 
@@ -489,39 +570,13 @@ impl Function for R3ToR {
 	}
 }
 
-/// encode `data` in hexadecimal
-fn encode_hex(data: &[u8]) -> String {
-	let mut s = String::with_capacity(data.len() * 2);
-	for byte in data {
-		write_str!(s, "{byte:02x}");
-	}
-	s
-}
-
-/// decode `data` from hexadecimal.
-/// returns None if this isn't a valid hexadecimal string.
-fn decode_hex(data: &str) -> Option<Vec<u8>> {
-	let data = data.trim();
-	if data.len() % 2 != 0 {
-		return None;
-	}
-
-	let mut bytes = Vec::with_capacity(data.len() / 2);
-	for i in 0..data.len() / 2 {
-		let s = data.get(2 * i..2 * i + 2)?;
-		let byte = u8::from_str_radix(s, 16).ok()?;
-		bytes.push(byte);
-	}
-	Some(bytes)
-}
-
 impl R3ToR {
-	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
-		<Self as Function>::good_random(rng, max_depth)
+	pub fn good_random(rng: &mut impl Rng, length: usize) -> Self {
+		<Self as Function>::good_random(rng, length)
 	}
 
-	pub fn good_thread_random(max_depth: isize) -> Self {
-		<Self as Function>::good_thread_random(max_depth)
+	pub fn good_thread_random(length: usize) -> Self {
+		<Self as Function>::good_thread_random(length)
 	}
 
 	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
@@ -530,12 +585,12 @@ impl R3ToR {
 }
 
 impl R3ToR3 {
-	pub fn good_random(rng: &mut impl Rng, max_depth: isize) -> Self {
-		<Self as Function>::good_random(rng, max_depth)
+	pub fn good_random(rng: &mut impl Rng, length: usize) -> Self {
+		<Self as Function>::good_random(rng, length)
 	}
 
-	pub fn good_thread_random(max_depth: isize) -> Self {
-		<Self as Function>::good_thread_random(max_depth)
+	pub fn good_thread_random(length: usize) -> Self {
+		<Self as Function>::good_thread_random(length)
 	}
 
 	pub fn to_glsl_function(&self, name: &str, code: &mut String) {
@@ -544,44 +599,20 @@ impl R3ToR3 {
 }
 
 pub struct SceneConfig {
-	pub sdf_max_depth: isize,
-	pub color_max_depth: isize,
+	pub sdf_length: usize,
+	pub color_length: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct Scene {
 	pub sdf: R3ToR,
 	pub color_function: R3ToR3,
 }
 
-impl Default for Scene {
-	/// a sphere. pretty boring
-	fn default() -> Self {
-		Self {
-			sdf: R3ToR::Sphere(Constant::F32(1.0)),
-			color_function: R3ToR3::Identity,
-		}
-	}
-}
-
 impl Scene {
-	pub fn export_string(&self) -> String {
-		let mut data: Vec<u8> = vec![];
-		// write errors should never happen
-		// that said, we don't want to panic if for whatever reason this fails.
-		let _ = serde_cbor::to_writer(&mut data, self);
-		encode_hex(&data)
-	}
-
-	/// returns None if `s` is not a valid SDF string
-	pub fn import_string(s: &str) -> Option<Self> {
-		let bytes = decode_hex(s)?;
-		serde_cbor::from_reader(&bytes[..]).ok()?
-	}
-
 	pub fn good_random(rng: &mut impl Rng, config: &SceneConfig) -> Self {
-		let sdf = R3ToR::good_random(rng, config.sdf_max_depth);
-		let color_function = R3ToR3::good_random(rng, config.color_max_depth);
+		let sdf = R3ToR::good_random(rng, config.sdf_length);
+		let color_function = R3ToR3::good_random(rng, config.color_length);
 		Scene {
 			sdf,
 			color_function,

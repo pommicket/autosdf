@@ -7,7 +7,10 @@ uniform float u_time;
 uniform float u_fov;
 uniform float u_focal_length;
 uniform float u_level_set;
+uniform float u_distance_threshold;
 uniform int u_hsv;
+uniform ivec2 u_antialiasing;
+uniform int u_iterations;
 
 %COMMON%
 %SDF%
@@ -37,9 +40,9 @@ vec3 get_color(vec3 p) {
 	}
 }
 
-#define ITERATIONS 30
-#define AA_X 1
-#define AA_Y 1
+#define ITERATIONS u_iterations
+#define AA_X u_antialiasing.x
+#define AA_Y u_antialiasing.y
 
 
 float sdf_adjusted(vec3 p) {
@@ -84,7 +87,7 @@ void main() {
 		p += dist * delta;
 	}
 
-	float threshold = 0.02;
+	float threshold = u_distance_threshold;
 	if (min_dist < threshold) {
 		vec3 N = normal(p);
 		// light direction = towards user

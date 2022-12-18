@@ -2,18 +2,13 @@
 @TODO:
 - options for:
 	- max framerate
-	- mouse sensitivity
-	- fov, focal length
-	- AA quality
-	- # iterations, distance cutoff
----release---
 - [ and ] to move through time
 - switch framebuffer texture to grayscale
 - show that   θ = σ(z) / sqrt(x² + y²)
 			  (x,y,z) → (x cosθ + y sinθ, y cosθ - x sinθ, z)
   is lipschitz continuous, & add it
 - feedback for copy/paste (flash screen or something)
-- feedback for pause/unpause/rewind
+- feedback for pause/unpause/rewind (flash icons)
 - Params instead of depth for GenRandom
    - allow multiple endpoints (cube & sphere & ...)
 - save seeds to a file then let user go back&forth through past sdfs
@@ -42,7 +37,11 @@ a263736466a167436f6d706f736583a165537153696ea163463332fa3e784c98a1634d697883a166
 a263736466a1634d696e82a1634d696e82a166537068657265a163463332fa3f2365aca1634d697883a167436f6d706f736583a16641726374616ea163463332fa3eb04a5ca167436f6d706f736583675369676d6f6964a169536d6f6f74684d696e82a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3eeb25b8684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f10d6a2684964656e74697479684964656e74697479684964656e74697479a165546f727573a266726164697573a163463332fa3d9099f069746869636b6e657373a163463332fa3e00b102a163463332fa3f06b5a2a1634d696e82a165546f727573a266726164697573a163463332fa40121b0169746869636b6e657373a163463332fa3e32f4faa1634d697883a16443756265a163463332fa3f7f9dc8a1634d697883a165546f727573a266726164697573a163463332fa3f9286e369746869636b6e657373a163463332fa3d8a3f27a167436f6d706f736583a167436f6d706f736582a167436f6d706f736582684964656e74697479684964656e74697479a16f496e66696e6974654d6972726f7273a163463332fa3ea62688a168426f784672616d65a26473697a65a163463332fa3fc0fb4969746869636b6e657373a163463332fa3e472462684964656e74697479a163463332fa3f69a73ea163463332fa3f5b9c9e6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3ef4ea8c
 a263736466a169536d6f6f74684d696e82a1634d696e82a167436f6d706f736583a167436f6d706f736582a16641726374616ea163463332fa3e6d7230a1695472616e736c61746583a163463332fa3e7262f8a163463332fa3eece0eca163463332fa3f49c42ca168426f784672616d65a26473697a65a163463332fa3ff3ee1169746869636b6e657373a163463332fa3df6dfed684964656e74697479a167436f6d706f736583a16f496e66696e6974654d6972726f7273a163463332fa3f2a2de8a165546f727573a266726164697573a163463332fa3fc93f1e69746869636b6e657373a163463332fa3e0fa700684964656e74697479a169536d6f6f74684d696e82a169536d6f6f74684d696e82a1634d696e82a169536d6f6f74684d696e82a167436f6d706f736583675369676d6f6964a1634d696e82a166537068657265a163463332fa3e0586b0a166537068657265a163463332fa3f4d6214684964656e74697479a167436f6d706f736583a167436f6d706f736582684964656e74697479684964656e74697479a1634d697883a166537068657265a163463332fa3f5c46e6a166537068657265a163463332fa3f3f4896a163463332fa3f10ba30684964656e74697479a166537068657265a163463332fa3ef3b604a167436f6d706f736583a165537153696ea163463332fa3ef1bfb8a1634d697883a1634d697883a168426f784672616d65a26473697a65a163463332fa3ee4801069746869636b6e657373a163463332fa3dc84d37a168426f784672616d65a26473697a65a163463332fa4019d5d269746869636b6e657373a163463332fa3d5d0307a163463332fa3eb7554ca167436f6d706f736583a165537153696ea163463332fa3f31c33ca167436f6d706f736583684964656e74697479a166537068657265a163463332fa3e7db3c0684964656e74697479684964656e74697479a163463332fa3f3176c0684964656e74697479a165546f727573a266726164697573a163463332fa3f253f0c69746869636b6e657373a163463332fa3c96c48d6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3ea219f4
 a263736466a169536d6f6f74684d696e82a1634d697883a167436f6d706f736583a16641726374616ea16454696d6582fa3da97b73fa3eddf3cca167436f6d706f736583a16f496e66696e6974654d6972726f7273a16454696d6582fabb6c5400fa3c230980a167436f6d706f736583675369676d6f6964a167436f6d706f736583a167436f6d706f736582684964656e74697479684964656e74697479a16443756265a163463332fa3edf6864684964656e74697479684964656e74697479684964656e74697479684964656e74697479a166537068657265a163463332fa3ee32af4a16454696d6582fa3db4b603fa3ea79394a1634d697883a167436f6d706f736583a16353696ea163463332fa3de4e160a167436f6d706f736583a16f496e66696e6974654d6972726f7273a163463332fa3f7493fea168426f784672616d65a26473697a65a16454696d6582fa3e92c08dfa3ee156b869746869636b6e657373a16454696d6582fa3c74f202fa3df09e1d684964656e74697479684964656e74697479a1634d697883a16443756265a163463332fa3f5f8194a1634d696e82a1634d697883a167436f6d706f736583675369676d6f6964a168426f784672616d65a26473697a65a163463332fa3fe3873769746869636b6e657373a163463332fa3e3524e7684964656e74697479a1634d696e82a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3f50ffb8684964656e74697479a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3c693200684964656e74697479a163463332fa3e5d3250a168426f784672616d65a26473697a65a163463332fa3fb01f6669746869636b6e657373a16454696d6582fabc5d9d48fa3d1cc993a163463332fa3f394d40a16454696d6582fabda7629afa3eefd35c6e636f6c6f725f66756e6374696f6ea16f496e66696e6974654d6972726f7273a163463332fa3d8dc730
+a263736466a1634d697883a167436f6d706f736583a1695472616e736c61746583a16454696d6582fa3c1c5ee8fa3f1f076ea16454696d6582fabc0cdbe8fa3ea36374a16454696d6582fa3cdd78a4fa3ef7d550a167436f6d706f736583a16641726374616ea16454696d6582fabbdfeb60fa3dc83a60a167436f6d706f736583a16f496e66696e6974654d6972726f7273a16454696d6582fabd054634fa3e4c5448a167436f6d706f736583a16f496e66696e6974654d6972726f7273a163463332fa3f0b5ffaa168426f784672616d65a26473697a65a163463332fa3f25fee269746869636b6e657373a16454696d6582fabc18bba9fa3e319347684964656e74697479684964656e74697479684964656e74697479684964656e74697479a1634d697883a168426f784672616d65a26473697a65a163463332fa40190a4e69746869636b6e657373a16454696d6582fa3b46bd33fa3cec529aa167436f6d706f736583a1695472616e736c61746583a16454696d6582fa3c91b74cfa3d0ece20a16454696d6582fa3da30eedfa3f261c72a163463332fa3f295ec6a167436f6d706f736583a167436f6d706f736582a16353696ea163463332fa3d069a00a16f496e66696e6974654d6972726f7273a16454696d6582fa3dae4de1fa3d837a30a1634d697883a167436f6d706f736583a16353696ea163463332fa3f7730b6a167436f6d706f736583684964656e74697479a166537068657265a163463332fa3e01c7a8684964656e74697479684964656e74697479a16443756265a16454696d6582fabcfb0758fa3e7763f0a16454696d6582fabd650fcdfa3f0d466e684964656e74697479684964656e74697479a16454696d6582fabd78a3fafa3dd86e20a16454696d6582fabd6ccb9afa3f1f06e46e636f6c6f725f66756e6374696f6ea167436f6d706f736582a167436f6d706f736582a16641726374616ea163463332fa3f67a3a2a16641726374616ea163463332fa3f287b4e675369676d6f6964
+a263736466a1634d697883a169536d6f6f74684d696e82a167436f6d706f736583a166526f7461746583a16454696d6582fa3ce93344fa3f037de0a16454696d6582fabcf59274fa3f605e9ca16454696d6582fabd5d556dfa3f13891ca167436f6d706f736583a167436f6d706f736582a167436f6d706f736582a16641726374616ea163463332fa3da39b50a167436f6d706f736582684964656e74697479684964656e74697479a167436f6d706f736582a16353696ea163463332fa3e785a08a167436f6d706f736582684964656e74697479684964656e74697479a167436f6d706f736583a166526f7461746583a163463332fa3ec36808a163463332fa3e1fdf58a163463332fa3e69ed18a165546f727573a266726164697573a163463332fa3fb2f5de69746869636b6e657373a163463332fa3e22de5d684964656e74697479684964656e74697479684964656e74697479a167436f6d706f736583a16353696ea163463332fa3ea5ea70a168426f784672616d65a26473697a65a16454696d6582fabe10ed3efa3eb1cfd869746869636b6e657373a163463332fa3e0dea57684964656e74697479a168426f784672616d65a26473697a65a16454696d6582fabd741592fa401a9ae469746869636b6e657373a16454696d6582fa3c677072fa3e3bc95da16454696d6582fa3b24dd40fa3e816f846e636f6c6f725f66756e6374696f6ea165537153696ea16454696d6582fabc7f2b18fa3f6e73c2
 */
+
+//  LICENSE: i'm not gonna sue you for "copyright infringement". go wild.
 
 extern crate nalgebra;
 
@@ -51,8 +50,9 @@ mod sdl;
 pub mod win;
 
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
-use std::time::Instant;
+use std::{time::Instant, fs::File, io::{BufReader, prelude::*}, collections::HashMap};
 use win::ColorF32;
+use sdf::ImportExport;
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -156,9 +156,6 @@ impl Programs {
 			.replace("%SDF%", &sdf)
 			.replace("%COMMON%", source_common);
 
-		//println!("{fshader_source}");
-		println!("scene: {}", scene.export_string());
-
 		window
 			.link_program(
 				&mut self.main,
@@ -199,9 +196,58 @@ fn get_rng() -> impl rand::Rng {
 const TEST_HEIGHT: u16 = 100;
 const TEST_WIDTH: u16 = 100;
 
+#[derive(Default)]
+struct Settings {
+	data: HashMap<String, f64>
+}
+
+impl Settings {
+	fn load(filename: &str) -> Result<Self, String> {
+		let file = File::open(filename).map_err(|e| format!("{e}"))?;
+		let reader = BufReader::new(file);
+		let mut data = HashMap::new();
+		for line in reader.lines() {
+			let full_line = line.map_err(|e| format!("{e}"))?;
+			let line = full_line.trim();
+			if line.starts_with('#') {
+				// comment
+			} else {
+				let parts: Vec<&str> = line.split(' ').collect();
+				if parts.len() != 2 {
+					return Err(format!("bad line: {line}"));
+				}
+				let key = parts[0].trim();
+				let value = parts[1].trim();
+				let value: f64 = value.parse().map_err(|_| format!("bad number: {value}"))?;
+				data.insert(key.to_string(), value);
+			}
+		}
+		Ok(Self {
+			data
+		})
+	}
+	
+	fn get_f64(&self, key: &str) -> Option<f64> {
+		self.data.get(key).copied()
+	}
+	
+	fn get_f32(&self, key: &str) -> Option<f32> {
+		self.get_f64(key).map(|x| x as f32)
+	}
+	
+	fn get_usize(&self, key: &str) -> Option<usize> {
+		self.get_f64(key).map(|x| x as usize)
+	}
+	
+	fn get_i32(&self, key: &str) -> Option<i32> {
+		self.get_f64(key).map(|x| x as i32)
+	}
+}
+
 struct State {
 	window: win::Window,
 	view: View,
+	settings: Settings,
 	initial_view: View,
 	show_debug_info: bool,
 	fullscreen: bool,
@@ -209,6 +255,8 @@ struct State {
 	programs: Programs,
 	config: sdf::SceneConfig,
 	scene: sdf::Scene,
+	// can be none if opening failed for whatever reason
+	scene_list: Option<File>,
 	framebuffer_texture: win::Texture,
 	framebuffer: win::Framebuffer,
 	main_array: win::VertexArray,
@@ -216,13 +264,13 @@ struct State {
 }
 
 impl State {
-	fn new() -> Result<Self, String> {
+	fn new(settings: Settings) -> Result<Self, String> {
 		let mut window = win::Window::new("AutoSDF", 1280, 720, &Default::default())
 			.map_err(|e| format!("Error creating window: {e}"))?;
 		let mut programs = Programs::new(&mut window);
 		let config = sdf::SceneConfig {
-			sdf_max_depth: 7,
-			color_max_depth: 6,
+			sdf_length: settings.get_usize("sdf-length").unwrap_or(500),
+			color_length: settings.get_usize("color-length").unwrap_or(300),
 		};
 		let scene = sdf::Scene::good_random(&mut get_rng(), &config);
 		programs
@@ -261,6 +309,12 @@ impl State {
 		let test_array = window.create_vertex_array(test_buffer, &programs.test);
 		
 		window.set_mouse_relative(true);
+		
+		let scene_list = File::options()
+			.append(true)
+			.create(true)
+			.open("scenes.txt")
+			.ok();
 
 		let mut me = Self {
 			window,
@@ -276,6 +330,8 @@ impl State {
 			framebuffer,
 			main_array,
 			test_array,
+			scene_list,
+			settings,
 		};
 		me.load_scene(scene);
 		Ok(me)
@@ -285,6 +341,13 @@ impl State {
 		match self.programs.load_scene(&mut self.window, &scene) {
 			Ok(()) => {
 				self.scene = scene;
+				if let Some(list) = &mut self.scene_list {
+					let mut string = self.scene.export_string();
+					string.push('\n');
+					// i dont really care if this fails, and it probably won't
+					let _ = list.write_all(string.as_bytes());
+				}
+				
 				// *technically speaking* the location of v_pos could change between reloads
 				self.window.array_attrib2f(&mut self.main_array, "v_pos", 0);
 				self.window.array_attrib2f(&mut self.test_array, "v_pos", 0);
@@ -388,7 +451,7 @@ impl State {
 					}
 				}
 				MouseMotion { xrel, yrel, .. } => {
-					let mouse_sensitivity = 0.05;
+					let mouse_sensitivity = 0.001 * self.settings.get_f32("mouse-sensitivity").unwrap_or(50.0);
 					self.view
 						.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
 					self.view
@@ -457,10 +520,14 @@ impl State {
 		window.use_program(&self.programs.main);
 		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
 		window.uniform1f("u_time", view.time as f32);
-		window.uniform1f("u_fov", std::f32::consts::PI * 0.25);
-		window.uniform1f("u_focal_length", 1.0);
+		window.uniform1f("u_fov", self.settings.get_f32("fov").unwrap_or(45.0).to_radians());
+		window.uniform1f("u_focal_length", self.settings.get_f32("focal-length").unwrap_or(1.0));
 		window.uniform1f("u_level_set", view.level_set);
-		window.uniform1i("u_hsv", 0);
+		window.uniform1i("u_hsv", self.settings.get_i32("hsv").unwrap_or(0));
+		let antialiasing = self.settings.get_i32("antialiasing").unwrap_or(1);
+		window.uniform2i("u_antialiasing", antialiasing, antialiasing);
+		window.uniform1i("u_iterations", self.settings.get_i32("max-iterations").unwrap_or(30));
+		window.uniform1f("u_distance_threshold", self.settings.get_f32("distance-threshold").unwrap_or(0.02));
 		window.uniform3x3f("u_rotation", view.rotation().as_slice());
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
 
@@ -476,7 +543,9 @@ impl State {
 }
 
 fn try_main() -> Result<(), String> {
-	let mut state = State::new()?;
+	let settings = Settings::load("settings.txt").map_err(|e|
+		format!("Error loading settings.txt: {e}"))?;
+	let mut state = State::new(settings)?;
 	while state.frame() {}
 
 	Ok(())

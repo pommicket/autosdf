@@ -1,0 +1,23 @@
+mouse-sensitivity 50
+#    complexity of SDF
+#    making this bigger will make more complex scenes, but will require more gpu computation
+sdf-length 500
+#    complexity of color function
+#    making this bigger will make more complex colors, but will require more gpu computation
+color-length 300
+#    max raymarching iterations
+#    making this bigger will make boundaries less "blurry", but will require more gpu computation
+max-iterations 30
+#    raymarching distance threshold
+#    (how close to distance 0 should the SDF get before we draw?)
+distance-threshold 0.02
+#    antialiasing factors
+#    e.g. use 2 for 2x2 MSAA
+#    this will make the scene look a bit nicer, but will require MUCH MORE gpu computation.
+antialiasing 1
+#    focal length in "meters"
+focal-length 1
+#    field of view in degrees
+fov 45
+#    set this to 1 to use HSV instead of RGB for color
+hsv 0
