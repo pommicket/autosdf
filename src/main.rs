@@ -152,6 +152,7 @@ impl Programs {
 		let source_main = include_str!("fshader_main.glsl");
 		let source_test = include_str!("fshader_test.glsl");
 		let source_common = include_str!("fshader_common.glsl");
+		println!("{:?}",scene.sdf);
 
 		let mut sdf = String::new();
 		let mut get_color = String::new();

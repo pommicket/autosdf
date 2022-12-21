@@ -4,12 +4,28 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::{Cell, RefCell};
 
+pub trait GenRandomParams: Sized + Default + Copy {
+	fn inc_depth(self) -> Self;
+}
+
+impl GenRandomParams for () {
+	fn inc_depth(self) -> Self {
+		()
+	}
+}
+
+impl GenRandomParams for i64 {
+	fn inc_depth(self) -> Self {
+		self - 1
+	}
+}
+
 /// Generate random structs and enums!
 ///
 /// You don't need to implement this trait yourself — instead, use the `derive` macro:
 /// ```
 /// use gen_random_proc_macro::GenRandom;
-/// use gen_random::GenRandom;
+/// use gen_random::{GenRandom, GenRandomParams};
 ///
 /// #[derive(GenRandom, Debug)]
 /// enum MyType {
@@ -36,132 +52,125 @@ use std::cell::{Cell, RefCell};
 /// }
 /// ```
 
-pub trait GenRandom: Sized {
-	/// To allow recursive structs like binary trees,
-	/// we provide a `max_depth` functionality.
-	/// If your struct isn't recursive, you can use [GenRandom::gen_random] instead.
-	/// If `max_depth <= 0` the **first** variant of an `enum` is always chosen
-	/// (so make sure `Empty` or whatever comes first).
-	/// For `Option<T>`, if `max_depth <= 0`, `None` is always chosen.
-	fn gen_random_max_depth(rng: &mut impl Rng, max_depth: isize) -> Self;
+pub trait GenRandom<Params: GenRandomParams>: Sized {
+	/// Generate a random value with parameters.
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self;
 	
-	/// Generate a random instance of this struct using the given random number generator.
+	/// Generate a random value
 	fn gen_random(rng: &mut impl Rng) -> Self {
-		Self::gen_random_max_depth(rng, isize::MAX)
+		Self::gen_random_params(rng, Params::default())
 	}
 	
-	/// Generate a random instance of this struct using `rand::thread_rng()` with a maximum depth.
-	fn gen_thread_random_max_depth(max_depth: isize) -> Self {
+	/// Generate a random instance of this struct using `rand::thread_rng()` with parameters.
+	fn gen_thread_random_params(params: Params) -> Self {
 		let mut thread_rng = rand::thread_rng();
-		Self::gen_random_max_depth(&mut thread_rng, max_depth)
+		Self::gen_random_params(&mut thread_rng, params)
 	}
 	
 	/// Generate a random instance of this struct using `rand::thread_rng()`.
 	fn gen_thread_random() -> Self {
-		Self::gen_thread_random_max_depth(isize::MAX)
+		Self::gen_thread_random_params(Params::default())
 	}
 }
 
-pub fn gen_random_vec<T: GenRandom>(rng: &mut impl Rng, len: usize) -> Vec<T> {
+pub fn gen_random_vec<P: GenRandomParams, T: GenRandom<P>>(rng: &mut impl Rng, len: usize) -> Vec<T> {
 	(0..len).map(|_| T::gen_random(rng)).collect()
 }
 
-pub fn gen_thread_random_vec<T: GenRandom>(len: usize) -> Vec<T> {
+pub fn gen_thread_random_vec<P: GenRandomParams, T: GenRandom<P>>(len: usize) -> Vec<T> {
 	gen_random_vec(&mut rand::thread_rng(), len)
 }
 
-impl GenRandom for f32 {
-	fn gen_random_max_depth(rng: &mut impl Rng, _depth: isize) -> Self {
+impl<Params: GenRandomParams> GenRandom<Params> for f32 {
+	fn gen_random_params(rng: &mut impl Rng, _params: Params) -> Self {
 		rng.gen_range(0.0..1.0)
 	}
 }
 
-impl GenRandom for f64 {
-	fn gen_random_max_depth(rng: &mut impl Rng, _depth: isize) -> Self {
+impl<Params: GenRandomParams> GenRandom<Params> for f64 {
+	fn gen_random_params(rng: &mut impl Rng, _params: Params) -> Self {
 		rng.gen_range(0.0..1.0)
 	}
 }
 
-impl<T: GenRandom> GenRandom for Box<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		Box::new(T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for Box<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		Box::new(T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for [T; 1] {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		[T::gen_random_max_depth(rng, depth)]
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for [T; 1] {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		[T::gen_random_params(rng, params)]
 	}
 }
 
-impl<T: GenRandom> GenRandom for [T; 2] {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		[T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth)]
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for [T; 2] {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		[T::gen_random_params(rng, params), T::gen_random_params(rng, params)]
 	}
 }
 
-impl<T: GenRandom> GenRandom for [T; 3] {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		[T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth)]
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for [T; 3] {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		[T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params)]
 	}
 }
 
-impl<T: GenRandom> GenRandom for [T; 4] {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		[T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth)]
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for [T; 4] {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		[T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params)]
 	}
 }
 
-impl<T: GenRandom> GenRandom for (T, T) {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		(T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for (T, T) {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		(T::gen_random_params(rng, params), T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for (T, T, T) {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		(T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for (T, T, T) {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		(T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for (T, T, T, T) {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		(T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth), T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for (T, T, T, T) {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		(T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params), T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for Rc<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		Self::new(T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for Rc<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		Self::new(T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for Arc<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		Self::new(T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for Arc<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		Self::new(T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for Cell<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		Self::new(T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for Cell<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		Self::new(T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for RefCell<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		Self::new(T::gen_random_max_depth(rng, depth))
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for RefCell<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		Self::new(T::gen_random_params(rng, params))
 	}
 }
 
-impl<T: GenRandom> GenRandom for Option<T> {
-	fn gen_random_max_depth(rng: &mut impl Rng, depth: isize) -> Self {
-		if depth <= 0 {
-			None
-		} else if rng.gen_range(0..2) == 0 {
+impl<Params: GenRandomParams, T: GenRandom<Params>> GenRandom<Params> for Option<T> {
+	fn gen_random_params(rng: &mut impl Rng, params: Params) -> Self {
+		if rng.gen_range(0..2) == 0 {
 			None
 		} else {
-			Some(T::gen_random_max_depth(rng, depth))
+			Some(T::gen_random_params(rng, params))
 		}
 	}
 }
@@ -171,7 +180,7 @@ impl<T: GenRandom> GenRandom for Option<T> {
 mod tests {
 	extern crate gen_random_proc_macro;
 	extern crate rand;
-	use super::{gen_thread_random_vec, GenRandom};
+	use super::{gen_thread_random_vec, GenRandom, GenRandomParams};
 	use gen_random_proc_macro::GenRandom;
 
 	#[derive(GenRandom, Debug)]
@@ -202,10 +211,12 @@ mod tests {
 	}
 
 	#[derive(GenRandom, Debug)]
+	#[params(i64)]
 	enum BinaryTree {
 		#[prob(1)]
 		Empty,
 		#[prob(99)]
+		#[only_if(params >= 0)]
 		Node(f64, Box<BinaryTree>, Box<BinaryTree>)
 	}
 
@@ -252,8 +263,8 @@ mod tests {
 	}
 	
 	#[test]
-	fn binary_tree_max_depth() {
-		let bintree = BinaryTree::gen_thread_random_max_depth(5);
+	fn binary_tree_params() {
+		let bintree = BinaryTree::gen_thread_random_params(5);
 		println!("{bintree:?}");
 	}
 }

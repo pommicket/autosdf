@@ -3,7 +3,7 @@ extern crate rand;
 extern crate serde;
 extern crate serde_cbor;
 
-use gen_random::GenRandom;
+use gen_random::{GenRandom, GenRandomParams};
 use gen_random_proc_macro::GenRandom;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -15,8 +15,31 @@ macro_rules! write_str {
 	($( $arg:tt )*) => { write!($($arg)*).unwrap() }
 }
 
+#[derive(Copy, Clone)]
+pub struct SdfParams {
+	max_depth: i32
+}
+
+impl Default for SdfParams {
+	fn default() -> Self {
+		Self {
+			max_depth: 5
+		}
+	}
+}
+
+impl GenRandomParams for SdfParams {
+	fn inc_depth(self) -> Self {
+		Self {
+			max_depth: self.max_depth - 1,
+			..self
+		}
+	}
+}
+
 /// these are constant across 3D space, not across time/user input/etc.
 #[derive(Debug, GenRandom, Serialize, Deserialize)]
+#[params(SdfParams)]
 pub enum Constant {
 	#[prob(0.0)]
 	F32(f32),
@@ -115,6 +138,7 @@ impl Display for Constant {
 }
 
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
+#[params(SdfParams)]
 pub struct Constant3(Constant, Constant, Constant);
 
 impl std::ops::Add<f32> for Constant3 {
@@ -145,10 +169,12 @@ impl Display for Constant3 {
 }
 
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
+#[params(SdfParams)]
 pub enum R3ToR3 {
 	#[prob(0)]
 	Identity,
 	#[prob(6)]
+	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	#[prob(1)]
 	Translate(Constant3),
@@ -169,21 +195,26 @@ pub enum R3ToR3 {
 	#[prob(2)]
 	#[bias(0.01)]
 	Sigmoid, //based on sigmoid(x) = 1 / (1 + e^-x)
+	#[prob(2)]
+	Twisty,
 }
 
 // note : i dont think R → R transformations really accomplish that much
 // that can't be done with R³ → R³.
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
+#[params(SdfParams)]
 pub enum RToR {
 	#[prob(1)]
 	Identity,
 	#[prob(0)]
+	#[only_if(params.max_depth >= 0)]
 	Compose(Box<RToR>, Box<RToR>),
 	#[prob(0)]
 	Subtract(Constant),
 }
 
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
+#[params(SdfParams)]
 pub enum R3ToR {
 	#[prob(1)]
 	Sphere(Constant),
@@ -204,12 +235,16 @@ pub enum R3ToR {
 		thickness: Constant,
 	},
 	#[prob(8)]
+	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
 	#[prob(4)]
+	#[only_if(params.max_depth >= 0)]
 	Mix(Box<R3ToR>, Box<R3ToR>, Constant),
 	#[prob(2)]
+	#[only_if(params.max_depth >= 0)]
 	SmoothMin(Box<R3ToR>, Box<R3ToR>),
 	#[prob(2)]
+	#[only_if(params.max_depth >= 0)]
 	Min(Box<R3ToR>, Box<R3ToR>),
 }
 
@@ -316,7 +351,7 @@ impl fmt::Display for GLSLType {
 	}
 }
 
-trait Function: Sized + Default + GenRandom + ImportExport {
+trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 	/// appends `code` with glsl code to apply the function to the input variable.
 	/// returns the output variable.
 	#[must_use]
@@ -344,9 +379,12 @@ trait Function: Sized + Default + GenRandom + ImportExport {
 	fn good_random(rng: &mut impl Rng, function_length: usize) -> Self {
 		let default_len = Self::default().export_string().len();
 		for max_depth in 1.. {
+			let params = SdfParams {
+				max_depth
+			};
 			let mut functions = vec![];
 			for _i in 0..20 {
-				let f = Self::gen_random_max_depth(rng, max_depth);
+				let f = Self::gen_random_params(rng, params);
 				let len = f.export_string().len().saturating_sub(default_len);
 				functions.push((len, f));
 			}
@@ -482,6 +520,25 @@ impl Function for R3ToR3 {
 				write_str!(
 					code,
 					"vec3 {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n"
+				);
+				output
+			}
+			Twisty => {
+				let a = var.next();
+				let theta = var.next();
+				let output = var.next();
+				write_str!(
+					code,
+					"vec2 {a} = vec2(cos({input}.x), sin({input}.y));\n"
+				);
+				write_str!(
+					code,
+					"float {theta} = {input}.z * sqrt(2.0);\n"
+				);
+				write_str!(
+					code,
+					"vec3 {output} = vec3({a}.x*cos({theta})+{a}.y*sin({theta}),
+						{a}.y*cos({theta})-{a}.x*sin({theta}),{input}.z) * (1.0/4.0);\n"
 				);
 				output
 			}
