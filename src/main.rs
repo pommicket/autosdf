@@ -1,13 +1,9 @@
 /*
 @TODO:
-- come up with twisty lipschitz continuous function, & add it
-- (slightly) more interesting constants
-- Params instead of depth for GenRandom
-   - allow multiple endpoints (cube & sphere & ...)
+- configurable resolution
 - let user go back&forth through past sdfs using scenes.txt file
-- mathematical analysis
 - documentation
-- GenRandom integers (+ gen_random_scale_bias)
+- GenRandom integers (just use 0..u32::MAX and add a modulus)
 - record a video
 - better SDL api: Context  +  Window<'a> impl !Send+!Sync
 - gallery view

@@ -173,7 +173,7 @@ impl Display for Constant3 {
 pub enum R3ToR3 {
 	#[prob(0)]
 	Identity,
-	#[prob(6)]
+	#[prob(8)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	#[prob(1)]
@@ -195,8 +195,8 @@ pub enum R3ToR3 {
 	#[prob(2)]
 	#[bias(0.01)]
 	Sigmoid, //based on sigmoid(x) = 1 / (1 + e^-x)
-	#[prob(2)]
-	Twisty,
+	#[prob(0)]
+	Twisty(Constant),
 }
 
 // note : i dont think R → R transformations really accomplish that much
@@ -216,24 +216,30 @@ pub enum RToR {
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum R3ToR {
-	#[prob(1)]
+	#[prob(0.1)]
 	Sphere(Constant),
-	#[prob(1)]
+	#[prob(0.1)]
 	Cube(Constant),
-	#[prob(1)]
+	#[prob(0.1)]
 	BoxFrame {
 		#[scale(3.0)]
 		size: Constant,
 		#[scale(0.2)]
 		thickness: Constant,
 	},
-	#[prob(1)]
+	#[prob(0.1)]
 	Torus {
 		#[scale(3.0)]
 		radius: Constant,
 		#[scale(0.2)]
 		thickness: Constant,
 	},
+	#[prob(0.1)]
+	TriPrism(Constant, Constant),
+	#[prob(0.1)]
+	VLineSegment(Constant),
+	#[prob(0.1)]
+	Cylinder(Constant, Constant),
 	#[prob(8)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
@@ -523,22 +529,27 @@ impl Function for R3ToR3 {
 				);
 				output
 			}
-			Twisty => {
+			Twisty(c) => {
+				let s = var.next();
 				let a = var.next();
 				let theta = var.next();
 				let output = var.next();
 				write_str!(
 					code,
-					"vec2 {a} = vec2(cos({input}.x), sin({input}.y));\n"
+					"vec3 {s} = {input} * {c};\n"
 				);
 				write_str!(
 					code,
-					"float {theta} = {input}.z * sqrt(2.0);\n"
+					"vec2 {a} = vec2(cos({s}.x), sin({s}.y));\n"
+				);
+				write_str!(
+					code,
+					"float {theta} = {s}.z * sqrt(2.0);\n"
 				);
 				write_str!(
 					code,
 					"vec3 {output} = vec3({a}.x*cos({theta})+{a}.y*sin({theta}),
-						{a}.y*cos({theta})-{a}.x*sin({theta}),{input}.z) * (1.0/4.0);\n"
+						{a}.y*cos({theta})-{a}.x*sin({theta}),{s}.z) * (1.0/(4.0 * {c}));\n"
 				);
 				output
 			}
@@ -583,6 +594,30 @@ impl Function for R3ToR {
 				write_str!(
 					code,
 					"float {output} = sdf_torus({input}, vec2({radius}, {thickness}));\n"
+				);
+				output
+			}
+			TriPrism(x, y) => {
+				let output = var.next();
+				write_str!(
+					code,
+					"float {output} = sdf_tri_prism({input}, vec2({x}, {y}));\n"
+				);
+				output
+			}
+			VLineSegment(h) => {
+				let output = var.next();
+				write_str!(
+					code,
+					"float {output} = sdf_vertical_line_segment({input}, {h});\n"
+				);
+				output
+			}
+			Cylinder(x, y) => {
+				let output = var.next();
+				write_str!(
+					code,
+					"float {output} = sdf_cylinder({input}, {x}, {y});\n"
 				);
 				output
 			}

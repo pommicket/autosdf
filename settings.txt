@@ -1,7 +1,7 @@
 mouse-sensitivity 50
 #    complexity of SDF
 #    making this bigger will make more complex scenes, but will require more gpu computation
-sdf-length 500
+sdf-length 600
 #    complexity of color function
 #    making this bigger will make more complex colors, but will require more gpu computation
 color-length 300
