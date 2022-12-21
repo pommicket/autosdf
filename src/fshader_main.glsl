@@ -12,6 +12,7 @@ uniform int u_hsv;
 uniform ivec2 u_antialiasing;
 uniform int u_iterations;
 uniform float u_aspect_ratio;
+uniform vec2 u_screen_size;
 uniform vec4 u_flash;
 uniform int u_flash_icon;
 
@@ -78,7 +79,7 @@ bool play_icon(vec2 pos) {
 
 void main() {
 	float min_dist = 10.;
-	vec2 inv_screen_size = 1.0 / vec2(1280.0, 720.0); // @TODO
+	vec2 inv_screen_size = 1.0 / u_screen_size;
 	vec2 aa_delta = inv_screen_size / vec2(AA_X, AA_Y);
 	vec3 final_color = vec3(0);
 	for (int m = 0; m < AA_X; m++) {

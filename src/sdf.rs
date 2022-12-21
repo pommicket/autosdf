@@ -195,6 +195,10 @@ pub enum R3ToR3 {
 	#[prob(2)]
 	#[bias(0.01)]
 	Sigmoid, //based on sigmoid(x) = 1 / (1 + e^-x)
+	#[prob(2)]
+	Wibbly,
+	#[prob(2)]
+	Sqrt(Constant),
 	#[prob(0)]
 	Twisty(Constant),
 }
@@ -552,6 +556,21 @@ impl Function for R3ToR3 {
 						{a}.y*cos({theta})-{a}.x*sin({theta}),{s}.z) * (1.0/(4.0 * {c}));\n"
 				);
 				output
+			}
+			Wibbly => {
+				let output = var.next();
+				write_str!(code,
+					"vec3 {output} = sqrt({input}*({input}+3*sin({input}))) * 0.39;\n"
+				);
+				output
+			}
+			Sqrt(c) => {
+				let output = var.next();
+				write_str!(code,
+					"vec3 {output} = sqrt({c} * abs({input}) + {c}*{c}) * 2.0;\n"
+				);
+				output
+				
 			}
 		}
 	}
