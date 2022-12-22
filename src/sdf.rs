@@ -176,6 +176,9 @@ pub enum R3ToR3 {
 	#[prob(8)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
+	#[prob(4)]
+	#[only_if(params.max_depth >= 0)]
+	Mix(Box<R3ToR3>, Box<R3ToR3>, Constant),
 	#[prob(1)]
 	Translate(Constant3),
 	#[prob(4)]
@@ -250,6 +253,9 @@ pub enum R3ToR {
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
 	Mix(Box<R3ToR>, Box<R3ToR>, Constant),
+	#[prob(4)]
+	#[only_if(params.max_depth >= 0)]
+	SinCos(Box<R3ToR>, Box<R3ToR>),
 	#[prob(2)]
 	#[only_if(params.max_depth >= 0)]
 	SmoothMin(Box<R3ToR>, Box<R3ToR>),
@@ -486,6 +492,16 @@ impl Function for R3ToR3 {
 				let a_output = a.to_glsl(input, code, var);
 				b.to_glsl(a_output, code, var)
 			}
+			Mix(a, b, t) => {
+				let a_output = a.to_glsl(input, code, var);
+				let b_output = b.to_glsl(input, code, var);
+				let output = var.next();
+				write_str!(
+					code,
+					"vec3 {output} = mix({a_output}, {b_output}, clamp({t}, 0.0, 1.0));\n"
+				);
+				output
+			}
 			Arctan(c) => {
 				let output = var.next();
 				// we need to scale arctan(cx) so it doesn't break the SDF
@@ -668,6 +684,16 @@ impl Function for R3ToR {
 				write_str!(
 					code,
 					"float {output} = smooth_min({a_output}, {b_output}, {k});\n"
+				);
+				output
+			}
+			SinCos(a, b) => {
+				let a = a.to_glsl(input, code, var);
+				let b = b.to_glsl(input, code, var);
+				let output = var.next();
+				write_str!(
+					code,
+					"float {output} = sin({a}) * cos({b});\n"
 				);
 				output
 			}
