@@ -61,7 +61,7 @@ f(\vec x)\geq ||\vec x-\vec y|| \implies f(\vec  y) \geq 0
 
 But this property is a bit annoying to deal with
 so we'll instead use ``1-Lipschitz continuity'',
-$$|f(\vec x) - f(\vec y)| \leq ||\vec x - \vec y||~~~\forall \vec x,\vec y\in\bb R^3$$
+$$|f(\vec x) - f(\vec y)| \leq ||\vec x - \vec y||~~~\forall \vec x,\vec y\in\bb R^n$$
 If $f$ is 1-Lipschitz, then $f$ satisfies (1),
 since in particular
 $$f(\vec y) \geq f(\vec x) - ||\vec x-\vec y||$$
@@ -110,7 +110,7 @@ and so $f$ is not $K$-Lipschitz.
 \end{theorem}
 
 (It might seem weird to talk about general functions from $\bb R^m$ to $\bb R^n$ since
-raymarching basically only deals with SDFs from $\bb R^3$ to $\bb R$, but this will be useful,
+raymarching basically only deals with SDFs from $\bb R^m$ to $\bb R$, but this will be useful,
 for example when creating SDFs by composing functions.)
 
 The normal definition of the operator norm doesn't really help us calculate it (it's a pain
@@ -122,14 +122,14 @@ $$\nabla f = \begin{pmatrix}
 \pp f{x_1}\\ \pp f{x_2}\\\cdots\\\pp f{x_n}
 \end{pmatrix}$$
 So
-$$(Df)(Df)^T = \sum_{i=1}^n (\nabla f)_i^2 = ||\nabla f||^2$$
+$$(Df)(Df)^T = (\nabla f)^T(\nabla f) = ||\nabla f||^2$$
 So in fact
 $$||Df|| = ||\nabla f||.$$
 
 This gives us a very easy way of determining $||Df(\vec x)||$: just compute each of the
 partial derivatives, and take the square root of the sum of their squares.
 
-Finding the total derivative $Df$ can be annoying (requires finding $n^2$ partial derivatives),
+Finding the total derivative $Df$ can be annoying (requires finding $nm$ partial derivatives),
 so it's nice to have some tools to reduce the dimension of the domain/codomain of $f$:
 \begin{theorem}
 \label{component-wise}
@@ -169,27 +169,24 @@ Let $\vec x,\vec y\in\bb R^m$. Let $\vec u = \frac{\vec y-\vec x}{||\vec y-\vec 
 \end{proof}
 \end{theorem}
 
-% here is a lemma which i didnt end up using
-% \begin{lemma}
-% \label{x-y-delta}
-% Let $f:\bb R^m\to\bb R^n$ be continuous.
-% If for all $\vec x,\vec y\in\bb R^m,\delta > 0$ there exist
-% $\vec a\in B(\vec x;\delta),\vec b\in B(\vec y;\delta)$ such that
-% $||f(\vec a)-f(\vec b)|| < K||\vec a-\vec b||$, then $f$ is $K$-Lipschitz.
-% \begin{proof}
-% Let $\ve > 0$, and select $\delta<\ve/K$ such that $f$ varies by less than $\ve$ in both
-% $B(\vec x;\delta)$ and $B(\vec y;\delta)$. Take $\vec a,\vec b$ as given by our assumption, then
-% \begin{align*}
-% ||f(\vec x)-f(\vec y)|| &\leq ||f(\vec x) - f(\vec a)|| + ||f(\vec a) - f(\vec b)|| + ||f(\vec b) - f(\vec y)||\\
-% &\leq \ve + K||\vec a-\vec b|| + \ve\\
-% &\leq 2\ve + K(||\vec a - \vec x|| + ||\vec x - \vec y|| + ||\vec y-\vec b||)\\
-% &\leq 2\ve + K(2\delta + ||\vec x - \vec y||)\\
-% &< 4\ve + K||\vec x-\vec y||
-% \end{align*}
-% The $4\ve$ term can be made arbitrarily small, so $||f(\vec x)-f(\vec y)|| \leq K||\vec x-\vec y||$.
-% \end{proof}
-% \end{lemma}
-
+Here is a useful theorem which shows a limit
+of differentiable functions $\{f_n\}$ with $||Df_n|| \leq 1$ is 1-Lipschitz
+(even though the limit isn't necessarily differentiable).
+\begin{theorem}
+\label{limit}
+Let $f:\bb R^m\to\bb R^n$, $f(\vec x) = \lim_{n\to\infty} f_n(\vec x)$, where each
+$f_n$ is $K$-Lipschitz. Then $f$ is $K$-Lipschitz.
+\begin{proof}
+Let $\vec x,\vec y\in\bb R^m$. For any $\ve>0$, there exists $n\in\bb N$ such that
+$$||f_n(\vec x) - f(\vec x)|| < \ve, ||f_n(\vec y) - f(\vec y)|| < \ve$$
+And now,
+\begin{align*}
+||f(\vec x) - f(\vec y)|| &\leq ||f(\vec x)-f_n(\vec x)|| + ||f_n(\vec x) - f_n(\vec y)|| + ||f(\vec y)-f_n(\vec y)||\\
+&< K||\vec x-\vec y|| + 2\ve
+\end{align*}
+Since $\ve$ can be made arbitrarily small, $||f(\vec x)-f(\vec y)|| \leq K||\vec x-\vec y||$.
+\end{proof}
+\end{theorem}
 
 \section{examples of 1-Lipschitz functions}
 
@@ -206,7 +203,8 @@ $\sin:\bb R\to\bb R$ is 1-Lipschitz so by Theorem \ref{component-wise}, $f$ is 1
 
 To procedurally generate 1-Lipschitz functions, we need rules about how to combine 1-Lipschitz
 functions to produce new 1-Lipschitz functions.
-One such rule is:
+
+For example,
 
 \begin{theorem}
 \label{composition}
@@ -239,9 +237,17 @@ If $f,g:\bb R^m\to\bb R$ are 1-Lipschitz then
 $$\vec x\mapsto \min\{f(\vec x),g(\vec x)\},~~\vec x\mapsto \max\{f(\vec x),g(\vec x)\}$$
 are too.
 \begin{proof}
-\begin{align*}
-|h(\vec x)-h(\vec y)| &= | \min\{f(\vec x),g(\vec x)\} - \min\{f(\vec y),g(\vec y)\}|
-\end{align*}
+By Theorem \ref{dim-reduction} it suffices to consider the case where $m=1$.
+Suppose that $f,g$ are 1-Lipschitz and
+$$|\min\{f(\vec x),g(\vec x)\} - \min\{f(\vec y),g(\vec y)\}| > ||\vec x-\vec y||$$
+If $f(\vec x) \geq g(\vec x)$ and $f(\vec y) \geq g(\vec x)$, or if $f(\vec x) \leq g(\vec x)$ and $f(\vec y) \leq g(\vec y)$,
+the contradiction is immediate. There are only two cases left, and they're symmetric:
+suppose without loss of generality that $f(\vec x) \geq g(\vec x)$ and $f(\vec y)\leq g(\vec y)$. Then
+we have
+$$|g(\vec x) - f(\vec y)| > ||\vec x-\vec y||$$
+And if $g(\vec x)-f(\vec y) \geq 0$ then $|f(\vec x) - f(\vec y)| \geq |g(\vec x) - f(\vec y)| > ||\vec x-\vec y||$,
+and if $g(\vec x)-f(\vec y) < 0$ then $|g(\vec x) - g(\vec y)| \geq |g(\vec x) - f(\vec y)| > ||\vec x-\vec y||$.
+
 $\max$ follows from $\max\{a,b\} = -\min\{-a,-b\}$ (negating a 1-Lipschitz function gives
 a 1-Lipschitz function).
 \end{proof}
@@ -274,63 +280,4 @@ And this bound is as strict as possible: we can definitely imagine $f,g$ satisfy
 $f(\vec x) = 0,g(\vec x)=\pi/2, Df(\vec x)\cdot Dg(\vec x) = -1$ for example (you can verify that this
 makes $||Dh(\vec x)|| = 1$).
 
-% i don't know about this section
-% it's pretty long and maybe not very helpful
-% \section{twisty function}
-% One function which might look interesting is
-% $$f(x,y,z) =(x\cos(\theta(z)) + y\sin(\theta(z)), y\cos(\theta(z)) - x\sin(\theta(z)), z)$$
-% where $\theta:\bb R\to\bb R$ is some function.
-% This can only work for $(x,y)$ bounded:
-% we want $\theta$ to only be dependent on $z$, since we want the plane $z=c$ to be rotated
-% all by the same angle, but then taking $(x,y)$ large enough, moving $z$ up by a tiny bit will drastically
-% change $x,y$.
-% So let's take $||(x,y)|| \leq 1$ for now.
-% We'll abbreviate $\theta(z)$ as just $\theta$.
-% 
-% $$f(x,y,z) =(x\cos\theta + y\sin\theta, y\cos\theta - x\sin\theta, z)$$
-% $$\frac{\partial f_1}{\partial x} = \cos\theta$$
-% $$\frac{\partial f_1}{\partial y} = \sin\theta$$
-% \begin{align*}
-% \frac{\partial f_1}{\partial z} &= -x\sin\theta\dd4\theta z + y\cos\theta\dd\theta z\\
-% &= u\theta'~~~~~\text{where $u=-x\sin\theta + y\cos\theta$}
-% \end{align*}
-% $$\frac{\partial f_2}{\partial x} = -\sin\theta$$
-% $$\frac{\partial f_2}{\partial y} = \cos\theta$$
-% \begin{align*}
-% \frac{\partial f_2}{\partial z} &= -y\sin\theta\pp\theta z - x\cos\theta\pp\theta z\\
-% &= v\theta'~~~~\text{where $v=-x\cos\theta - y\sin\theta$}
-% \end{align*}
-% Of course $\pp {f_3} x=\pp{f_3}y=0,\pp{f_3}z=1$. This gives us the derivative
-% $$Df = \begin{pmatrix}
-% \cos\theta&\sin\theta&u\theta'\\
-% -\sin\theta&\cos\theta&v\theta'\\
-% 0&0&1
-% \end{pmatrix}$$
-% $$(Df)(r,s,t) = \begin{pmatrix}
-% r\cos\theta + s\sin\theta + u\theta't\\
-% s\cos\theta - r\sin\theta + v\theta't\\
-% t
-% \end{pmatrix}$$
-% \begin{align*}
-% ||(Df)(r,s,t)||^2 &= 
-% (r\cos\theta)^2 + (s\sin\theta)^2 + (u\theta't)^2\\
-% &~~+ 2rs\cos\theta\sin\theta + 2rtu\theta'\cos\theta
-% + 2stu\theta'\sin\theta\\
-% &~~+(s\cos\theta)^2 + (-r\sin\theta)^2 + (v\theta't)^2\\
-% &~~- 2rs\cos\theta\sin\theta + 2stv\theta'\cos\theta
-% - 2rtv\theta'\sin\theta + t^2\\
-% &= (r^2+s^2)(\cos^2\theta + \sin^2\theta) + (u^2+v^2)(\theta't)^2\\
-% &~~+2t\theta'((ru+sv)\cos\theta + (su-rv)\sin\theta)\\
-% &= ||(r,s)||^2 + ||(u,v)||^2
-%  + 2t\theta'((ru+sv)\cos\theta + (su-rv)\sin\theta) + t^2
-% \end{align*}
-% Now let's take $||(r,s,t)||,||(u,v)||\leq 1$. Note
-% that $ru+sv = (r,s)\cdot (u,v) \leq ||(r,s)||$ and likewise
-% $su-rv\leq ||(s,-r)||=||(r,s)||$. So then
-% \begin{align*}
-% ||(Df)(r,s,t)||^2  &\leq 2 + 2\theta't||(r,s)||(\cos\theta + \sin\theta) + t^2\\
-% &\leq2 + 2\theta't||(r,s)||\sqrt2 + t^2\\
-% \end{align*}
-% {\Large\bf TODO}
-% 
 \end{document}
