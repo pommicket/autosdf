@@ -3,7 +3,6 @@
 #![allow(non_snake_case)]
 /// this module provides SDL type definitions, and more rust-y wrappers around
 /// SDL functions.
-
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
 use std::mem;
 
@@ -663,7 +662,6 @@ pub struct SDL_Color {
 
 pub type SDL_Colour = SDL_Color;
 
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct SDL_Rect {
@@ -672,7 +670,6 @@ pub struct SDL_Rect {
 	w: c_int,
 	h: c_int,
 }
-
 
 #[repr(C)]
 pub struct SDL_Palette {
@@ -786,7 +783,6 @@ impl SDL_AudioSpec {
 	}
 }
 
-
 #[link(name = "SDL2", kind = "dylib")]
 extern "C" {
 	fn SDL_Init(flags: u32) -> c_int;
@@ -824,6 +820,8 @@ extern "C" {
 	fn SDL_GL_GetProcAddress(proc: *const c_char) -> *mut c_void;
 	fn SDL_PollEvent(event: *mut SDL_Event) -> c_int;
 	fn SDL_GetKeyboardState(numkeys: *mut c_int) -> *const u8;
+	fn SDL_GetKeyFromScancode(scancode: SDL_Scancode) -> SDL_Keycode;
+	// NOTE: do NOT add SDL_GetScancodeFromKey !!! see get_scancodes_from_key for explanation.
 	fn SDL_OpenAudioDevice(
 		device: *const c_char,
 		iscapture: c_int,
@@ -1095,12 +1093,262 @@ pub mod scancode {
 	pub const NUM_SCANCODES: SDL_Scancode = 512;
 }
 
+pub mod keycode {
+	use super::scancode;
+	use super::{SDL_Keycode, SDL_Scancode};
+	const fn SDL_SCANCODE_TO_KEYCODE(scancode: SDL_Scancode) -> SDL_Keycode {
+		scancode as SDL_Keycode | 1 << 30
+	}
+
+	pub const UNKNOWN: SDL_Keycode = 0;
+	pub const RETURN: SDL_Keycode = '\r' as _;
+	pub const ESCAPE: SDL_Keycode = '\x1b' as _;
+	pub const BACKSPACE: SDL_Keycode = '\x08' as _;
+	pub const TAB: SDL_Keycode = '\t' as _;
+	pub const SPACE: SDL_Keycode = ' ' as _;
+	pub const EXCLAIM: SDL_Keycode = '!' as _;
+	pub const QUOTEDBL: SDL_Keycode = '"' as _;
+	pub const HASH: SDL_Keycode = '#' as _;
+	pub const PERCENT: SDL_Keycode = '%' as _;
+	pub const DOLLAR: SDL_Keycode = '$' as _;
+	pub const AMPERSAND: SDL_Keycode = '&' as _;
+	pub const QUOTE: SDL_Keycode = '\'' as _;
+	pub const LEFTPAREN: SDL_Keycode = '(' as _;
+	pub const RIGHTPAREN: SDL_Keycode = ')' as _;
+	pub const ASTERISK: SDL_Keycode = '*' as _;
+	pub const PLUS: SDL_Keycode = '+' as _;
+	pub const COMMA: SDL_Keycode = ',' as _;
+	pub const MINUS: SDL_Keycode = '-' as _;
+	pub const PERIOD: SDL_Keycode = '.' as _;
+	pub const SLASH: SDL_Keycode = '/' as _;
+	pub const N0: SDL_Keycode = '0' as _;
+	pub const N1: SDL_Keycode = '1' as _;
+	pub const N2: SDL_Keycode = '2' as _;
+	pub const N3: SDL_Keycode = '3' as _;
+	pub const N4: SDL_Keycode = '4' as _;
+	pub const N5: SDL_Keycode = '5' as _;
+	pub const N6: SDL_Keycode = '6' as _;
+	pub const N7: SDL_Keycode = '7' as _;
+	pub const N8: SDL_Keycode = '8' as _;
+	pub const N9: SDL_Keycode = '9' as _;
+	pub const COLON: SDL_Keycode = ':' as _;
+	pub const SEMICOLON: SDL_Keycode = ';' as _;
+	pub const LESS: SDL_Keycode = '<' as _;
+	pub const EQUALS: SDL_Keycode = '=' as _;
+	pub const GREATER: SDL_Keycode = '>' as _;
+	pub const QUESTION: SDL_Keycode = '?' as _;
+	pub const AT: SDL_Keycode = '@' as _;
+	pub const LEFTBRACKET: SDL_Keycode = '[' as _;
+	pub const BACKSLASH: SDL_Keycode = '\\' as _;
+	pub const RIGHTBRACKET: SDL_Keycode = ']' as _;
+	pub const CARET: SDL_Keycode = '^' as _;
+	pub const UNDERSCORE: SDL_Keycode = '_' as _;
+	pub const BACKQUOTE: SDL_Keycode = '`' as _;
+	pub const A: SDL_Keycode = 'a' as _;
+	pub const B: SDL_Keycode = 'b' as _;
+	pub const C: SDL_Keycode = 'c' as _;
+	pub const D: SDL_Keycode = 'd' as _;
+	pub const E: SDL_Keycode = 'e' as _;
+	pub const F: SDL_Keycode = 'f' as _;
+	pub const G: SDL_Keycode = 'g' as _;
+	pub const H: SDL_Keycode = 'h' as _;
+	pub const I: SDL_Keycode = 'i' as _;
+	pub const J: SDL_Keycode = 'j' as _;
+	pub const K: SDL_Keycode = 'k' as _;
+	pub const L: SDL_Keycode = 'l' as _;
+	pub const M: SDL_Keycode = 'm' as _;
+	pub const N: SDL_Keycode = 'n' as _;
+	pub const O: SDL_Keycode = 'o' as _;
+	pub const P: SDL_Keycode = 'p' as _;
+	pub const Q: SDL_Keycode = 'q' as _;
+	pub const R: SDL_Keycode = 'r' as _;
+	pub const S: SDL_Keycode = 's' as _;
+	pub const T: SDL_Keycode = 't' as _;
+	pub const U: SDL_Keycode = 'u' as _;
+	pub const V: SDL_Keycode = 'v' as _;
+	pub const W: SDL_Keycode = 'w' as _;
+	pub const X: SDL_Keycode = 'x' as _;
+	pub const Y: SDL_Keycode = 'y' as _;
+	pub const Z: SDL_Keycode = 'z' as _;
+	pub const CAPSLOCK: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CAPSLOCK);
+	pub const F1: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F1);
+	pub const F2: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F2);
+	pub const F3: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F3);
+	pub const F4: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F4);
+	pub const F5: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F5);
+	pub const F6: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F6);
+	pub const F7: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F7);
+	pub const F8: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F8);
+	pub const F9: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F9);
+	pub const F10: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F10);
+	pub const F11: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F11);
+	pub const F12: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F12);
+	pub const PRINTSCREEN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PRINTSCREEN);
+	pub const SCROLLLOCK: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::SCROLLLOCK);
+	pub const PAUSE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PAUSE);
+	pub const INSERT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::INSERT);
+	pub const HOME: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::HOME);
+	pub const PAGEUP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PAGEUP);
+	pub const DELETE: SDL_Keycode = '\x7f' as _;
+	pub const END: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::END);
+	pub const PAGEDOWN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PAGEDOWN);
+	pub const RIGHT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RIGHT);
+	pub const LEFT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::LEFT);
+	pub const DOWN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::DOWN);
+	pub const UP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::UP);
+	pub const NUMLOCKCLEAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::NUMLOCKCLEAR);
+	pub const KP_DIVIDE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_DIVIDE);
+	pub const KP_MULTIPLY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MULTIPLY);
+	pub const KP_MINUS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MINUS);
+	pub const KP_PLUS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_PLUS);
+	pub const KP_ENTER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_ENTER);
+	pub const KP_1: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_1);
+	pub const KP_2: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_2);
+	pub const KP_3: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_3);
+	pub const KP_4: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_4);
+	pub const KP_5: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_5);
+	pub const KP_6: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_6);
+	pub const KP_7: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_7);
+	pub const KP_8: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_8);
+	pub const KP_9: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_9);
+	pub const KP_0: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_0);
+	pub const KP_PERIOD: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_PERIOD);
+	pub const APPLICATION: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::APPLICATION);
+	pub const POWER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::POWER);
+	pub const KP_EQUALS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_EQUALS);
+	pub const F13: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F13);
+	pub const F14: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F14);
+	pub const F15: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F15);
+	pub const F16: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F16);
+	pub const F17: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F17);
+	pub const F18: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F18);
+	pub const F19: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F19);
+	pub const F20: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F20);
+	pub const F21: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F21);
+	pub const F22: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F22);
+	pub const F23: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F23);
+	pub const F24: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::F24);
+	pub const EXECUTE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::EXECUTE);
+	pub const HELP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::HELP);
+	pub const MENU: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::MENU);
+	pub const SELECT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::SELECT);
+	pub const STOP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::STOP);
+	pub const AGAIN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AGAIN);
+	pub const UNDO: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::UNDO);
+	pub const CUT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CUT);
+	pub const COPY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::COPY);
+	pub const PASTE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PASTE);
+	pub const FIND: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::FIND);
+	pub const MUTE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::MUTE);
+	pub const VOLUMEUP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::VOLUMEUP);
+	pub const VOLUMEDOWN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::VOLUMEDOWN);
+	pub const KP_COMMA: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_COMMA);
+	pub const KP_EQUALSAS400: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_EQUALSAS400);
+	pub const ALTERASE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::ALTERASE);
+	pub const SYSREQ: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::SYSREQ);
+	pub const CANCEL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CANCEL);
+	pub const CLEAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CLEAR);
+	pub const PRIOR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::PRIOR);
+	pub const RETURN2: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RETURN2);
+	pub const SEPARATOR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::SEPARATOR);
+	pub const OUT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::OUT);
+	pub const OPER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::OPER);
+	pub const CLEARAGAIN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CLEARAGAIN);
+	pub const CRSEL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CRSEL);
+	pub const EXSEL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::EXSEL);
+	pub const KP_00: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_00);
+	pub const KP_000: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_000);
+	pub const THOUSANDSSEPARATOR: SDL_Keycode =
+		SDL_SCANCODE_TO_KEYCODE(scancode::THOUSANDSSEPARATOR);
+	pub const DECIMALSEPARATOR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::DECIMALSEPARATOR);
+	pub const CURRENCYUNIT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CURRENCYUNIT);
+	pub const CURRENCYSUBUNIT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CURRENCYSUBUNIT);
+	pub const KP_LEFTPAREN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_LEFTPAREN);
+	pub const KP_RIGHTPAREN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_RIGHTPAREN);
+	pub const KP_LEFTBRACE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_LEFTBRACE);
+	pub const KP_RIGHTBRACE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_RIGHTBRACE);
+	pub const KP_TAB: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_TAB);
+	pub const KP_BACKSPACE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_BACKSPACE);
+	pub const KP_A: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_A);
+	pub const KP_B: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_B);
+	pub const KP_C: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_C);
+	pub const KP_D: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_D);
+	pub const KP_E: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_E);
+	pub const KP_F: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_F);
+	pub const KP_XOR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_XOR);
+	pub const KP_POWER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_POWER);
+	pub const KP_PERCENT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_PERCENT);
+	pub const KP_LESS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_LESS);
+	pub const KP_GREATER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_GREATER);
+	pub const KP_AMPERSAND: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_AMPERSAND);
+	pub const KP_DBLAMPERSAND: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_DBLAMPERSAND);
+	pub const KP_VERTICALBAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_VERTICALBAR);
+	pub const KP_DBLVERTICALBAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_DBLVERTICALBAR);
+	pub const KP_COLON: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_COLON);
+	pub const KP_HASH: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_HASH);
+	pub const KP_SPACE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_SPACE);
+	pub const KP_AT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_AT);
+	pub const KP_EXCLAM: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_EXCLAM);
+	pub const KP_MEMSTORE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMSTORE);
+	pub const KP_MEMRECALL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMRECALL);
+	pub const KP_MEMCLEAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMCLEAR);
+	pub const KP_MEMADD: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMADD);
+	pub const KP_MEMSUBTRACT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMSUBTRACT);
+	pub const KP_MEMMULTIPLY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMMULTIPLY);
+	pub const KP_MEMDIVIDE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_MEMDIVIDE);
+	pub const KP_PLUSMINUS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_PLUSMINUS);
+	pub const KP_CLEAR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_CLEAR);
+	pub const KP_CLEARENTRY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_CLEARENTRY);
+	pub const KP_BINARY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_BINARY);
+	pub const KP_OCTAL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_OCTAL);
+	pub const KP_DECIMAL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_DECIMAL);
+	pub const KP_HEXADECIMAL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KP_HEXADECIMAL);
+	pub const LCTRL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::LCTRL);
+	pub const LSHIFT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::LSHIFT);
+	pub const LALT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::LALT);
+	pub const LGUI: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::LGUI);
+	pub const RCTRL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RCTRL);
+	pub const RSHIFT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RSHIFT);
+	pub const RALT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RALT);
+	pub const RGUI: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::RGUI);
+	pub const MODE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::MODE);
+	pub const AUDIONEXT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIONEXT);
+	pub const AUDIOPREV: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOPREV);
+	pub const AUDIOSTOP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOSTOP);
+	pub const AUDIOPLAY: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOPLAY);
+	pub const AUDIOMUTE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOMUTE);
+	pub const MEDIASELECT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::MEDIASELECT);
+	pub const WWW: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::WWW);
+	pub const MAIL: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::MAIL);
+	pub const CALCULATOR: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::CALCULATOR);
+	pub const COMPUTER: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::COMPUTER);
+	pub const AC_SEARCH: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_SEARCH);
+	pub const AC_HOME: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_HOME);
+	pub const AC_BACK: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_BACK);
+	pub const AC_FORWARD: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_FORWARD);
+	pub const AC_STOP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_STOP);
+	pub const AC_REFRESH: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_REFRESH);
+	pub const AC_BOOKMARKS: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AC_BOOKMARKS);
+	pub const BRIGHTNESSDOWN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::BRIGHTNESSDOWN);
+	pub const BRIGHTNESSUP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::BRIGHTNESSUP);
+	pub const DISPLAYSWITCH: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::DISPLAYSWITCH);
+	pub const KBDILLUMTOGGLE: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KBDILLUMTOGGLE);
+	pub const KBDILLUMDOWN: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KBDILLUMDOWN);
+	pub const KBDILLUMUP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::KBDILLUMUP);
+	pub const EJECT: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::EJECT);
+	pub const SLEEP: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::SLEEP);
+	pub const APP1: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::APP1);
+	pub const APP2: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::APP2);
+	pub const AUDIOREWIND: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOREWIND);
+	pub const AUDIOFASTFORWARD: SDL_Keycode = SDL_SCANCODE_TO_KEYCODE(scancode::AUDIOFASTFORWARD);
+}
+
 pub struct Surface {
-	ptr: *mut SDL_Surface
+	ptr: *mut SDL_Surface,
 }
 
 impl Surface {
-	/// Returns `None` if `ptr` is null. 
+	/// Returns `None` if `ptr` is null.
 	/// # Safety
 	/// You may only call this function if `ptr` refers to a valid `SDL_Surface`
 	/// which can be freed with `SDL_FreeSurface`.
@@ -1113,7 +1361,7 @@ impl Surface {
 			Some(Self { ptr })
 		}
 	}
-	
+
 	/// # Safety
 	/// It is your responsibility to use the pointer *before* dropping this `Surface`.
 	pub unsafe fn get_raw(&self) -> *mut SDL_Surface {
@@ -1351,4 +1599,15 @@ pub unsafe fn load_bmp(filename: &str) -> Result<Surface, String> {
 
 pub unsafe fn set_window_icon(win: *mut SDL_Window, icon: &Surface) {
 	SDL_SetWindowIcon(win, icon.ptr);
+}
+
+/// Get all scancodes associated with a keycode.
+///
+/// `SDL_GetScancodeFromKey` is a bad function! it's possible (though unlikely) for multiple
+/// scancodes to map to the same keycode. i've encountered this problem myself
+/// with sdl applications (don't ask why).
+pub unsafe fn get_scancodes_from_key(keycode: SDL_Keycode) -> impl Iterator<Item = SDL_Scancode> {
+	// the current implementation of SDL_GetKeyFromScancode is just an array lookup so this loop
+	// should perform well.
+	(0..scancode::NUM_SCANCODES).filter(move |&scn| SDL_GetKeyFromScancode(scn) == keycode)
 }

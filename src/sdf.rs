@@ -17,14 +17,12 @@ macro_rules! write_str {
 
 #[derive(Copy, Clone)]
 pub struct SdfParams {
-	max_depth: i32
+	max_depth: i32,
 }
 
 impl Default for SdfParams {
 	fn default() -> Self {
-		Self {
-			max_depth: 5
-		}
+		Self { max_depth: 5 }
 	}
 }
 
@@ -395,9 +393,7 @@ trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 	fn good_random(rng: &mut impl Rng, function_length: usize) -> Self {
 		let default_len = Self::default().export_string().len();
 		for max_depth in 1.. {
-			let params = SdfParams {
-				max_depth
-			};
+			let params = SdfParams { max_depth };
 			let mut functions = vec![];
 			for _i in 0..20 {
 				let f = Self::gen_random_params(rng, params);
@@ -554,18 +550,9 @@ impl Function for R3ToR3 {
 				let a = var.next();
 				let theta = var.next();
 				let output = var.next();
-				write_str!(
-					code,
-					"vec3 {s} = {input} * {c};\n"
-				);
-				write_str!(
-					code,
-					"vec2 {a} = vec2(cos({s}.x), sin({s}.y));\n"
-				);
-				write_str!(
-					code,
-					"float {theta} = {s}.z * sqrt(2.0);\n"
-				);
+				write_str!(code, "vec3 {s} = {input} * {c};\n");
+				write_str!(code, "vec2 {a} = vec2(cos({s}.x), sin({s}.y));\n");
+				write_str!(code, "float {theta} = {s}.z * sqrt(2.0);\n");
 				write_str!(
 					code,
 					"vec3 {output} = vec3({a}.x*cos({theta})+{a}.y*sin({theta}),
@@ -575,18 +562,19 @@ impl Function for R3ToR3 {
 			}
 			Wibbly => {
 				let output = var.next();
-				write_str!(code,
+				write_str!(
+					code,
 					"vec3 {output} = sqrt({input}*({input}+3*sin({input}))) * 0.39;\n"
 				);
 				output
 			}
 			Sqrt(c) => {
 				let output = var.next();
-				write_str!(code,
+				write_str!(
+					code,
 					"vec3 {output} = sqrt({c} * abs({input}) + {c}*{c}) * 2.0;\n"
 				);
 				output
-				
 			}
 		}
 	}
@@ -650,10 +638,7 @@ impl Function for R3ToR {
 			}
 			Cylinder(x, y) => {
 				let output = var.next();
-				write_str!(
-					code,
-					"float {output} = sdf_cylinder({input}, {x}, {y});\n"
-				);
+				write_str!(code, "float {output} = sdf_cylinder({input}, {x}, {y});\n");
 				output
 			}
 			Mix(a, b, t) => {
@@ -691,10 +676,7 @@ impl Function for R3ToR {
 				let a = a.to_glsl(input, code, var);
 				let b = b.to_glsl(input, code, var);
 				let output = var.next();
-				write_str!(
-					code,
-					"float {output} = sin({a}) * cos({b});\n"
-				);
+				write_str!(code, "float {output} = sin({a}) * cos({b});\n");
 				output
 			}
 			Compose(pre, f, post) => {

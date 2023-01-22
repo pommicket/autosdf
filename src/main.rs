@@ -1,7 +1,5 @@
 /*
 @TODO:
-- configurable resolution
-   (e.g. run on 1080p monitor at 720p to make it go faster)
 - let user go back&forth through past sdfs using scenes.txt file
 - documentation
 - GenRandom integers (just use 0..u32::MAX and add a modulus)
@@ -27,7 +25,7 @@ use std::{
 	io::{prelude::*, BufReader},
 	time::Instant,
 };
-use win::{ColorGrayscaleF32, ColorF32};
+use win::{ColorF32, ColorGrayscaleF32, ColorU8};
 
 type Vec3 = Vector3<f32>;
 type Mat3 = Matrix3<f32>;
@@ -41,7 +39,7 @@ enum Icon {
 	Copy = 1,
 	Play = 2,
 	Pause = 3,
-	Rewind = 4
+	Rewind = 4,
 }
 
 #[derive(Clone)]
@@ -111,6 +109,7 @@ impl View {
 struct Programs {
 	main: win::Program,
 	test: win::Program,
+	post: win::Program,
 }
 
 impl Programs {
@@ -118,13 +117,18 @@ impl Programs {
 		Programs {
 			main: window.new_program(),
 			test: window.new_program(),
+			post: window.new_program(),
 		}
 	}
 
 	fn load_scene(&mut self, window: &mut win::Window, scene: &sdf::Scene) -> Result<(), String> {
-		let source_main = include_str!("fshader_main.glsl");
-		let source_test = include_str!("fshader_test.glsl");
+		let vsource_main = include_str!("vshader_main.glsl");
+		let fsource_main = include_str!("fshader_main.glsl");
+		let vsource_test = include_str!("vshader_test.glsl");
+		let fsource_test = include_str!("fshader_test.glsl");
 		let source_common = include_str!("fshader_common.glsl");
+		let vsource_post = include_str!("vshader_post.glsl");
+		let fsource_post = include_str!("fshader_post.glsl");
 
 		let mut sdf = String::new();
 		let mut get_color = String::new();
@@ -132,40 +136,22 @@ impl Programs {
 		scene
 			.color_function
 			.to_glsl_function("get_color_", &mut get_color);
-		let source_main = source_main
+		let fsource_main = fsource_main
 			.replace("%SDF%", &sdf)
 			.replace("%COLOR%", &get_color)
 			.replace("%COMMON%", source_common);
-		let source_test = source_test
+		let fsource_test = fsource_test
 			.replace("%SDF%", &sdf)
 			.replace("%COMMON%", source_common);
 
 		window
-			.link_program(
-				&mut self.main,
-				"IN vec2 v_pos;
-			OUT vec2 pos;
-			uniform float u_aspect_ratio;
-			
-			void main() {
-				pos = v_pos * vec2(u_aspect_ratio, 1.0);
-				gl_Position = vec4(v_pos, 0.0, 1.0);
-			}",
-				&source_main,
-			)
+			.link_program(&mut self.main, vsource_main, &fsource_main)
 			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
 		window
-			.link_program(
-				&mut self.test,
-				"IN vec2 v_pos;
-			OUT vec2 pos;
-			
-			void main() {
-				pos = v_pos;
-				gl_Position = vec4(v_pos, 0.0, 1.0);
-			}",
-				&source_test,
-			)
+			.link_program(&mut self.test, vsource_test, &fsource_test)
+			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
+		window
+			.link_program(&mut self.post, vsource_post, &fsource_post)
 			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
 		Ok(())
 	}
@@ -239,10 +225,14 @@ struct State {
 	scene: sdf::Scene,
 	// can be none if opening failed for whatever reason
 	scene_list: Option<File>,
-	framebuffer_texture: win::Texture,
-	framebuffer: win::Framebuffer,
+	test_framebuffer_texture: win::Texture,
+	test_framebuffer: win::Framebuffer,
+	main_framebuffer_texture: win::Texture,
+	main_framebuffer: win::Framebuffer,
+	main_framebuffer_size: (i32, i32),
 	main_array: win::VertexArray,
 	test_array: win::VertexArray,
+	post_array: win::VertexArray,
 	// displayed on top of the screen. used for feedback when copying/pasting/etc
 	flash: ColorF32,
 	flash_icon: Icon,
@@ -263,23 +253,31 @@ impl State {
 			.load_scene(&mut window, &scene)
 			.unwrap_or_else(|e| eprintln!("Error: {e}"));
 
-		let mut framebuffer_texture = window.create_texture(&Default::default());
+		let mut test_framebuffer_texture = window.create_texture(&Default::default());
 		// we don't really care if there's an error. not much bad will happen.
-		let _ = window.set_texture_no_data::<ColorGrayscaleF32>(
-			&mut framebuffer_texture,
+		let _ = test_framebuffer_texture.set_data::<ColorGrayscaleF32>(
+			None,
 			TEST_WIDTH.into(),
 			TEST_HEIGHT.into(),
 		);
 
-		let mut framebuffer = window.create_framebuffer();
-		window.set_framebuffer_texture(
-			&mut framebuffer,
+		let mut test_framebuffer = window.create_framebuffer();
+		test_framebuffer.set_texture(
 			win::FramebufferAttachment::Color0,
-			&framebuffer_texture,
+			&test_framebuffer_texture,
 		);
-
+		
+		
+		let main_texconfig = win::TextureParams {
+			mag_filter: win::TextureFilter::Nearest,
+			..Default::default()
+		};
+		let main_framebuffer_texture = window.create_texture(&main_texconfig);
+		let main_framebuffer = window.create_framebuffer();
+		
 		let mut main_buffer = window.create_buffer();
 		let mut test_buffer = window.create_buffer();
+		let mut post_buffer = window.create_buffer();
 		let data: &[[f32; 2]] = &[
 			[-1.0, -1.0],
 			[1.0, -1.0],
@@ -288,10 +286,12 @@ impl State {
 			[1.0, 1.0],
 			[-1.0, 1.0],
 		];
-		window.set_buffer_data(&mut main_buffer, data);
-		window.set_buffer_data(&mut test_buffer, data);
+		main_buffer.set_data(data);
+		test_buffer.set_data(data);
+		post_buffer.set_data(data);
 		let main_array = window.create_vertex_array(main_buffer, &programs.main);
 		let test_array = window.create_vertex_array(test_buffer, &programs.test);
+		let post_array = window.create_vertex_array(post_buffer, &programs.post);
 
 		window.set_mouse_relative(true);
 
@@ -311,10 +311,14 @@ impl State {
 			show_debug_info: false,
 			fullscreen: false,
 			scene: sdf::Scene::default(),
-			framebuffer_texture,
-			framebuffer,
+			test_framebuffer_texture,
+			test_framebuffer,
+			main_framebuffer_texture,
+			main_framebuffer,
+			main_framebuffer_size: (0, 0),
 			main_array,
 			test_array,
+			post_array,
 			scene_list,
 			settings,
 			flash: ColorF32::rgba(0.0, 0.0, 0.0, 0.0),
@@ -336,27 +340,27 @@ impl State {
 				}
 
 				// *technically speaking* the location of v_pos could change between reloads
-				self.window.array_attrib2f(&mut self.main_array, "v_pos", 0);
-				self.window.array_attrib2f(&mut self.test_array, "v_pos", 0);
+				self.main_array.attrib2f("v_pos", 0);
+				self.test_array.attrib2f("v_pos", 0);
+				self.post_array.attrib2f("v_pos", 0);
 
 				// percentage of space occupied by object
 				let frac = 0.25;
 				// determine default level set
 				// specifically we want to select y such that
 				//   for ~frac of p values, sdf(p) < y
-				self.window.bind_framebuffer(Some(&self.framebuffer));
+				self.window.bind_framebuffer(Some(&self.test_framebuffer));
 				self.window
 					.viewport(0, 0, TEST_WIDTH.into(), TEST_HEIGHT.into());
 
 				self.window.use_program(&self.programs.test);
-				self.window.draw_array(&self.test_array);
+				self.test_array.draw();
 
-				self.window.viewport_full_screen();
 				self.window.bind_framebuffer(None);
 
 				let mut sdf_values: Vec<f32> = self
 					.window
-					.get_texture_data_vec::<ColorGrayscaleF32>(&self.framebuffer_texture)
+					.get_texture_data_vec::<ColorGrayscaleF32>(&self.test_framebuffer_texture)
 					.iter()
 					.map(|c| c.value)
 					.collect();
@@ -382,11 +386,21 @@ impl State {
 		self.flash = match icon {
 			Icon::None => ColorF32::BLACK,
 			Icon::Copy => ColorF32::GREEN,
-			_ => ColorF32::rgb(1.0,0.5,0.0),
+			_ => ColorF32::rgb(1.0, 0.5, 0.0),
 		};
 		self.flash_icon = icon;
 	}
 	
+	fn render_resolution(&self) -> (i32, i32) {
+		let scale = self.settings.get_f32("scale").unwrap_or(1.0);
+		if scale <= 0.0 || scale > 1.0 {
+			win::display_error_message(&format!("bad scale: {scale}"));
+			std::process::exit(1);
+		}
+		let (w, h) = self.window.size();
+		((w as f32 * scale) as i32, (h as f32 * scale) as i32)
+	}
+
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
 		if let Some(max_framerate) = self.settings.get_f32("max-framerate") {
@@ -539,15 +553,32 @@ impl State {
 			self.view.level_set += dl * level_set_amount;
 		}
 
+		let render_resolution = self.render_resolution();
+		if render_resolution != self.main_framebuffer_size {
+			let result = self.main_framebuffer_texture.set_data::<ColorU8>(None, render_resolution.0 as usize, render_resolution.1 as usize);
+			
+			match result {
+				Ok(()) => {},
+				Err(e) => eprintln!("warning:{e}"),
+			}
+			
+			self.main_framebuffer.set_texture(
+				win::FramebufferAttachment::Color0,
+				&self.main_framebuffer_texture,
+			);
+			self.main_framebuffer_size = render_resolution;
+		}
+		
 		let window = &mut self.window;
 		let view = &self.view;
-		window.viewport_full_screen();
+		window.viewport(0, 0, render_resolution.0, render_resolution.1);
 
 		window.clear_screen(win::ColorF32::BLACK);
 		window.use_program(&self.programs.main);
-		window.uniform1f("u_aspect_ratio", window.aspect_ratio());
+		window.bind_framebuffer(Some(&self.main_framebuffer));
+		window.uniform1f("u_aspect_ratio", render_resolution.0 as f32 / render_resolution.1 as f32);
 		{
-			let (w,h) = window.size();
+			let (w, h) = window.size();
 			window.uniform2f("u_screen_size", w as f32, h as f32);
 		}
 		window.uniform1f("u_time", view.time as f32);
@@ -575,16 +606,24 @@ impl State {
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
 		window.uniform4f_color("u_flash", self.flash);
 		window.uniform1i("u_flash_icon", self.flash_icon as i32);
-		
+
 		self.flash.a = f32::max(self.flash.a - frame_dt * (2.0 - 1.0 * self.flash.a), 0.0);
 		if self.flash.a <= 0.0 {
 			// icon is no longer visible
 			self.flash_icon = Icon::None;
 		}
 
-		window.draw_array(&self.main_array);
+		self.main_array.draw();
+		
+		window.bind_framebuffer(None);
+		window.viewport_full_screen();
+		window.use_program(&self.programs.post);
+		window.active_texture(0, &self.main_framebuffer_texture);
+		window.uniform_texture("u_texture", 0);
+		self.post_array.draw();
 
 		window.swap();
+		
 		if self.show_debug_info {
 			println!("frame time = {:?}ms", frame_dt * 1000.0);
 		}

@@ -10,9 +10,10 @@ use std::{fmt, mem};
 
 pub type AudioCallback = fn(sample_rate: u32, samples: &mut [f32]);
 
-/// dammit rust why wont you stabilize negative_impls
+/// adding this type to a struct prevents it from being sent across threads.
 type NoSendSync = *const u8;
 
+#[repr(C)]
 struct AudioData {
 	callback: AudioCallback,
 	device: sdl::SDL_AudioDeviceID,
@@ -28,6 +29,7 @@ pub struct Window {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
+	Unknown,
 	A,
 	B,
 	C,
@@ -131,12 +133,14 @@ pub enum Key {
 	F10,
 	F11,
 	F12,
+	Other(u32),
 }
 
 impl Key {
-	fn from_sdl(scancode: sdl::SDL_Scancode) -> Option<Self> {
-		use sdl::scancode::*;
-		Some(match scancode {
+	fn from_sdl(keycode: sdl::SDL_Keycode) -> Self {
+		use sdl::keycode::*;
+		match keycode {
+			UNKNOWN => Key::Unknown,
 			A => Key::A,
 			B => Key::B,
 			C => Key::C,
@@ -232,21 +236,22 @@ impl Key {
 			RIGHTBRACKET => Key::RightBracket,
 			BACKSLASH => Key::Backslash,
 			SEMICOLON => Key::Semicolon,
-			APOSTROPHE => Key::Quote,
+			QUOTE => Key::Quote,
 			COMMA => Key::Comma,
 			PERIOD => Key::Period,
 			SLASH => Key::Slash,
-			GRAVE => Key::Backtick,
+			BACKQUOTE => Key::Backtick,
 			BACKSPACE => Key::Backspace,
 			TAB => Key::Tab,
 			CAPSLOCK => Key::CapsLock,
-			_ => return None,
-		})
+			x => Key::Other(x),
+		}
 	}
 
-	fn to_sdl(self) -> sdl::SDL_Scancode {
-		use sdl::scancode::*;
+	fn to_sdl(self) -> sdl::SDL_Keycode {
+		use sdl::keycode::*;
 		match self {
+			Key::Unknown => UNKNOWN,
 			Key::A => A,
 			Key::B => B,
 			Key::C => C,
@@ -294,8 +299,8 @@ impl Key {
 			Key::Comma => COMMA,
 			Key::Period => PERIOD,
 			Key::Slash => SLASH,
-			Key::Quote => APOSTROPHE,
-			Key::Backtick => GRAVE,
+			Key::Quote => QUOTE,
+			Key::Backtick => BACKQUOTE,
 			Key::Backspace => BACKSPACE,
 			Key::Up => UP,
 			Key::Left => LEFT,
@@ -350,6 +355,7 @@ impl Key {
 			Key::RAlt => RALT,
 			Key::LGui => LGUI,
 			Key::RGui => RGUI,
+			Key::Other(x) => x,
 		}
 	}
 }
@@ -546,6 +552,15 @@ impl ColorU8 {
 	pub fn as_tuple(self) -> (u8, u8, u8, u8) {
 		(self.r, self.g, self.b, self.a)
 	}
+
+	pub fn slice_from_bytes(bytes: &[u8]) -> &[ColorU8] {
+		// SAFETY: it is safe to transmute since ColorU8 is repr(C)
+		let (prefix, colors, suffix) = unsafe { bytes.align_to() };
+		// these should never panic since align_of(ColorU8) == 1
+		assert_eq!(prefix.len(), 0);
+		assert_eq!(suffix.len(), 0);
+		colors
+	}
 }
 
 impl From<u32> for ColorU8 {
@@ -573,7 +588,7 @@ impl ColorF32 {
 	pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
 		ColorF32 { r, g, b, a }
 	}
-	
+
 	pub const fn gray(value: f32) -> Self {
 		Self::rgb(value, value, value)
 	}
@@ -603,7 +618,7 @@ unsafe impl Color for ColorGrayscaleF32 {
 
 pub struct Shader {
 	id: GLuint,
-	/// shaders should not be sent across threads because of the drop function.
+	/// shaders should not be sent across threads
 	_unused: NoSendSync,
 }
 
@@ -690,7 +705,7 @@ impl Drop for Shader {
 
 pub struct Program {
 	id: GLuint,
-	/// programs should not be sent across threads because of the drop function.
+	/// programs should not be sent across threads
 	_unused: NoSendSync,
 }
 
@@ -753,7 +768,7 @@ pub struct Buffer {
 	id: GLuint,
 	stride: u32,
 	count: u32,
-	/// buffers should not be sent across threads because of the drop function.
+	/// buffers should not be sent across threads
 	_unused: NoSendSync,
 }
 
@@ -769,21 +784,27 @@ impl Buffer {
 		}
 	}
 
-	unsafe fn bind(&self) {
-		gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
+	fn bind(&self) {
+		unsafe { gl::BindBuffer(gl::ARRAY_BUFFER, self.id) };
 	}
 
-	unsafe fn set_data<T>(&mut self, data: &[T]) {
-		gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
+	pub fn set_data<T>(&mut self, data: &[T]) {
+		if mem::size_of::<T>() as u64 > i32::MAX as u64 {
+			panic!("Buffer data item too large");
+		}
+
+		unsafe { gl::BindBuffer(gl::ARRAY_BUFFER, self.id) };
 		self.count = data.len() as u32;
 		self.stride = mem::size_of::<T>() as u32;
 
-		gl::BufferData(
-			gl::ARRAY_BUFFER,
-			(self.count * self.stride) as _,
-			data.as_ptr() as _,
-			gl::STATIC_DRAW,
-		);
+		unsafe {
+			gl::BufferData(
+				gl::ARRAY_BUFFER,
+				(self.count * self.stride) as _,
+				data.as_ptr() as _,
+				gl::STATIC_DRAW,
+			);
+		}
 	}
 }
 
@@ -797,7 +818,7 @@ pub struct VertexArray {
 	buffer: Buffer,
 	id: GLuint,
 	program: GLuint,
-	/// vertex arrays should not be sent across threads because of the drop function.
+	/// vertex arrays should not be sent across threads
 	_unused: NoSendSync,
 }
 
@@ -815,38 +836,56 @@ impl VertexArray {
 		}
 	}
 
-	unsafe fn bind(&self) {
-		gl::BindVertexArray(self.id);
+	fn bind(&self) {
+		unsafe { gl::BindVertexArray(self.id) };
 	}
 
-	unsafe fn attribnf(&mut self, n: u8, name: &str, offset: usize) -> bool {
+	fn attribnf(&mut self, n: u8, name: &str, offset: usize) -> bool {
 		let Ok(cstring) = CString::new(name) else { return false };
 		let cstr = cstring.as_ptr() as *const GLchar;
-		let loc = gl::GetAttribLocation(self.program, cstr);
+		let loc = unsafe { gl::GetAttribLocation(self.program, cstr) };
 		let Ok(loc) = loc.try_into() else { return false };
 
-		if offset + usize::from(n) * size_of::<f32>() > self.buffer.stride as usize {
+		if offset.saturating_add(usize::from(n) * size_of::<f32>()) > self.buffer.stride as usize {
 			// offset too large
 			return false;
 		}
 
 		self.bind();
 		self.buffer.bind();
-		gl::VertexAttribPointer(
-			loc,
-			n.into(),
-			gl::FLOAT,
-			0,
-			self.buffer.stride as _,
-			offset as _,
-		);
-		gl::EnableVertexAttribArray(loc);
+		unsafe {
+			gl::VertexAttribPointer(
+				loc,
+				n.into(),
+				gl::FLOAT,
+				0,
+				self.buffer.stride as _,
+				offset as _,
+			);
+			gl::EnableVertexAttribArray(loc);
+		}
 		true
 	}
 
-	unsafe fn draw(&self) {
+	pub fn buffer_mut(&mut self) -> &mut Buffer {
+		&mut self.buffer
+	}
+
+	pub fn attrib2f(&mut self, name: &str, offset: usize) -> bool {
+		self.attribnf(2, name, offset)
+	}
+
+	pub fn attrib3f(&mut self, name: &str, offset: usize) -> bool {
+		self.attribnf(3, name, offset)
+	}
+
+	pub fn attrib4f(&mut self, name: &str, offset: usize) -> bool {
+		self.attribnf(4, name, offset)
+	}
+
+	pub fn draw(&self) {
 		self.bind();
-		gl::DrawArrays(gl::TRIANGLES, 0, self.buffer.count as i32);
+		unsafe { gl::DrawArrays(gl::TRIANGLES, 0, self.buffer.count as i32) };
 	}
 }
 
@@ -878,7 +917,7 @@ pub struct Texture {
 	params: TextureParams,
 	width: usize,
 	height: usize,
-	/// textures should not be sent across threads because of the drop function.
+	/// textures should not be sent across threads
 	_unused: NoSendSync,
 }
 
@@ -895,11 +934,13 @@ impl Texture {
 		}
 	}
 
-	unsafe fn bind(&self) {
-		gl::BindTexture(gl::TEXTURE_2D, self.id);
+	fn bind(&self) {
+		unsafe {
+			gl::BindTexture(gl::TEXTURE_2D, self.id);
+		}
 	}
 
-	unsafe fn set_data<T: Color>(
+	pub fn set_data<T: Color>(
 		&mut self,
 		data: Option<&[T]>,
 		width: usize,
@@ -927,27 +968,29 @@ impl Texture {
 
 		let params = &self.params;
 		self.bind();
-		gl::TexImage2D(
-			gl::TEXTURE_2D,
-			0,
-			T::GL_FORMAT as GLint,
-			width,
-			height,
-			0,
-			T::GL_FORMAT,
-			T::GL_TYPE,
-			ptr.cast(),
-		);
-		gl::TexParameteri(
-			gl::TEXTURE_2D,
-			gl::TEXTURE_MIN_FILTER,
-			params.min_filter.to_gl(),
-		);
-		gl::TexParameteri(
-			gl::TEXTURE_2D,
-			gl::TEXTURE_MAG_FILTER,
-			params.mag_filter.to_gl(),
-		);
+		unsafe {
+			gl::TexImage2D(
+				gl::TEXTURE_2D,
+				0,
+				T::GL_FORMAT as GLint,
+				width,
+				height,
+				0,
+				T::GL_FORMAT,
+				T::GL_TYPE,
+				ptr.cast(),
+			);
+			gl::TexParameteri(
+				gl::TEXTURE_2D,
+				gl::TEXTURE_MIN_FILTER,
+				params.min_filter.to_gl(),
+			);
+			gl::TexParameteri(
+				gl::TEXTURE_2D,
+				gl::TEXTURE_MAG_FILTER,
+				params.mag_filter.to_gl(),
+			);
+		}
 		Ok(())
 	}
 
@@ -1066,24 +1109,26 @@ impl Framebuffer {
 		}
 	}
 
-	unsafe fn bind(&self) {
-		gl::BindFramebuffer(gl::FRAMEBUFFER, self.id);
+	fn bind(&self) {
+		unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, self.id) };
 	}
 
-	unsafe fn unbind() {
-		gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+	fn unbind() {
+		unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0) };
 	}
 
-	unsafe fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
+	pub fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
 		self.bind();
 		texture.bind();
-		gl::FramebufferTexture2D(
-			gl::FRAMEBUFFER,
-			attachment.to_gl(),
-			gl::TEXTURE_2D,
-			texture.id,
-			0,
-		);
+		unsafe { 
+			gl::FramebufferTexture2D(
+				gl::FRAMEBUFFER,
+				attachment.to_gl(),
+				gl::TEXTURE_2D,
+				texture.id,
+				0,
+			);
+		}
 		Self::unbind();
 	}
 }
@@ -1194,7 +1239,7 @@ impl Window {
 			);
 		}
 	}
-	
+
 	pub fn set_icon(&mut self, bmp_filename: &str) {
 		unsafe {
 			if let Ok(icon) = sdl::load_bmp(bmp_filename) {
@@ -1243,56 +1288,18 @@ impl Window {
 		unsafe { Buffer::new() }
 	}
 
-	pub fn set_buffer_data<T>(&mut self, buffer: &mut Buffer, data: &[T]) {
-		unsafe { buffer.set_data(data) };
-	}
-
 	pub fn create_vertex_array(&mut self, buffer: Buffer, program: &Program) -> VertexArray {
 		unsafe { VertexArray::new(buffer, program) }
-	}
-
-	fn array_attribnf(
-		&mut self,
-		array: &mut VertexArray,
-		n: u8,
-		name: &str,
-		offset: usize,
-	) -> bool {
-		unsafe { array.attribnf(n, name, offset) }
-	}
-
-	pub fn array_attrib2f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
-		self.array_attribnf(array, 2, name, offset)
-	}
-
-	pub fn array_attrib3f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
-		self.array_attribnf(array, 3, name, offset)
-	}
-
-	pub fn array_attrib4f(&mut self, array: &mut VertexArray, name: &str, offset: usize) -> bool {
-		self.array_attribnf(array, 4, name, offset)
 	}
 
 	pub fn create_framebuffer(&mut self) -> Framebuffer {
 		unsafe { Framebuffer::new() }
 	}
 
-	/// Attach texture to framebuffer.
-	/// In theory this should check that `framebuffer` does not outlive `texture`,
-	/// but that would be difficult to do in a nice way.
-	pub fn set_framebuffer_texture(
-		&mut self,
-		framebuffer: &mut Framebuffer,
-		attachment: FramebufferAttachment,
-		texture: &Texture,
-	) {
-		unsafe { framebuffer.set_texture(attachment, texture) };
-	}
-
 	pub fn bind_framebuffer(&mut self, framebuffer: Option<&Framebuffer>) {
 		match framebuffer {
-			Some(f) => unsafe { f.bind() },
-			None => unsafe { Framebuffer::unbind() },
+			Some(f) => f.bind(),
+			None => Framebuffer::unbind(),
 		}
 	}
 
@@ -1325,14 +1332,13 @@ impl Window {
 				sdl::SDL_QUIT => return Some(Event::Quit),
 				sdl::SDL_KEYDOWN | sdl::SDL_KEYUP => {
 					let keysym = unsafe { sdl.key }.keysym;
-					let scancode = keysym.scancode;
-					if let Some(key) = Key::from_sdl(scancode) {
-						let modifier = KeyModifier::from_sdl(keysym.r#mod);
-						if r#type == sdl::SDL_KEYDOWN {
-							return Some(Event::KeyDown { key, modifier });
-						} else {
-							return Some(Event::KeyUp { key, modifier });
-						}
+					let keycode = keysym.sym;
+					let key = Key::from_sdl(keycode);
+					let modifier = KeyModifier::from_sdl(keysym.r#mod);
+					if r#type == sdl::SDL_KEYDOWN {
+						return Some(Event::KeyDown { key, modifier });
+					} else {
+						return Some(Event::KeyUp { key, modifier });
 					}
 				}
 				sdl::SDL_MOUSEMOTION => {
@@ -1358,31 +1364,6 @@ impl Window {
 
 	pub fn create_texture(&mut self, params: &TextureParams) -> Texture {
 		unsafe { Texture::new(params) }
-	}
-
-	pub fn set_texture_data<T: Color>(
-		&mut self,
-		texture: &mut Texture,
-		data: &[T],
-		width: usize,
-		height: usize,
-	) -> Result<(), String> {
-		unsafe { texture.set_data(Some(data), width, height) }?;
-		Ok(())
-	}
-
-	/// sets texture width + height but not data.
-	///
-	/// NOTE: you must still specify the color type!
-	/// for framebuffers, etc.
-	pub fn set_texture_no_data<T: Color>(
-		&mut self,
-		texture: &mut Texture,
-		width: usize,
-		height: usize,
-	) -> Result<(), String> {
-		unsafe { texture.set_data::<T>(None, width, height) }?;
-		Ok(())
 	}
 
 	/// get texture image
@@ -1542,7 +1523,7 @@ impl Window {
 		assert_eq!(xyzw.len(), 4);
 		self.uniform4f(name, xyzw[0], xyzw[1], xyzw[2], xyzw[3])
 	}
-	
+
 	pub fn uniform4f_color(&mut self, name: &str, color: ColorF32) {
 		self.uniform4f(name, color.r, color.g, color.b, color.a);
 	}
@@ -1567,13 +1548,11 @@ impl Window {
 		self.uniform1i(name, slot as i32);
 	}
 
-	pub fn draw_array(&mut self, array: &VertexArray) {
-		unsafe { array.draw() };
-	}
-
 	pub fn is_key_down(&self, key: Key) -> bool {
 		let kbd_state = unsafe { sdl::get_keyboard_state() };
-		kbd_state[key.to_sdl() as usize] != 0
+		let mut scancodes = unsafe { sdl::get_scancodes_from_key(key.to_sdl()) };
+
+		scancodes.any(|scn| kbd_state[scn as usize] != 0)
 	}
 
 	pub fn any_key_down(&self, keys: &[Key]) -> bool {
