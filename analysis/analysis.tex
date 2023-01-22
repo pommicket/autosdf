@@ -1,0 +1,336 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\newcommand\bb\mathbb
+\newcommand\ve\varepsilon
+\renewcommand\vec\textbf
+\renewcommand\l\left
+\renewcommand\r\right
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newcommand\pp[2]{\frac{\partial #1}{\partial #2}}
+\newcommand\dd[2]{\frac{d#1}{d#2}}
+\newcommand\transpose{^\top}
+\title{Randomly generating signed distance functions}
+\author{pommicket}
+\date{}
+\begin{document}
+\maketitle
+
+\section{introduction}
+
+In general, an $n$-dimensional {\em signed distance function} (SDF) is a function
+$f:\bb R^n\to\bb R$ representing the distance to a set $A$: for $\vec p\notin A$,
+$f(\vec p)$ is the distance from $\vec p$ to $A$. For $\vec p\in A$, $f(\vec p)$ is the
+negative of the distance from $\vec p$ to the boundary of $A$.
+
+This means that if $A$ is closed then
+$A = \{\vec x\in\bb R^n:f(\vec x)\leq 0\}$.
+
+(I'm not gonna go over the ray marching algorithm, there are better resources out there on
+the internet.)
+
+Ray marching doesn't need a {\em true} SDF, it still usually works
+for a function which just bounds the true SDF.
+From now on I'm just gonna use the term ``SDF'' for something that {\em can} be used with raymarching,
+not necessarily a true SDF.
+
+When generating random SDFs,
+we just want something that behaves nicely, and where we'll end up drawing the set
+$\{\vec x\in\bb R^n:f(\vec x) \leq 0\}$.
+
+\section{constraints on SDFs}
+Suppose we're doing ray marching starting from 
+some point $\vec p$ and traveling in the direction $\vec d$.
+
+When designing an SDF $f$, what we want to avoid is the possibility
+that $f(\vec p)$ is too  large, and so we ``skip'' over
+the object when moving from $\vec p$ to $\vec p + f(\vec p) \vec d$.
+Specifically, we have the following requirement:
+
+For all $\vec p,\vec d\in \bb R^n$
+with $||\vec d||=1$ and $f(\vec p)\geq 0$,
+and for any point $\vec x$ on the line segment between
+$\vec p$ and $\vec p + f(\vec p) \vec d$, $f(\vec x) \leq 0$.
+This is equivalent to saying that for any two points $\vec x,\vec y$,
+\begin{equation*}
+\tag{1}
+f(\vec x)\geq ||\vec x-\vec y|| \implies f(\vec  y) \geq 0
+\end{equation*}
+
+But this property is a bit annoying to deal with
+so we'll instead use ``1-Lipschitz continuity'',
+$$|f(\vec x) - f(\vec y)| \leq ||\vec x - \vec y||~~~\forall \vec x,\vec y\in\bb R^3$$
+If $f$ is 1-Lipschitz, then $f$ satisfies (1),
+since in particular
+$$f(\vec y) \geq f(\vec x) - ||\vec x-\vec y||$$
+
+In general an arbitrary function $g:A \to\bb R^n$ is
+$K$-Lipschitz if for all $\vec x,\vec y\in A$,
+$$||g(\vec x) - g(\vec y)|| \leq K||\vec x-\vec y||$$
+
+(This last definition is useful for us since if $g$ is $K$-Lipschitz
+then $x\mapsto g(x)/K$ and $x\mapsto g(x/K)$ are 1-Lipschitz.)
+
+And any {\em true} SDF $f$ (i.e. $f$ actually represents
+the distance to an object) is 1-Lipschitz, since the difference
+between the distance from $\vec x$ to the object and the distance
+from $\vec y$ to the object should be at most the distance between
+$\vec x$ and $\vec y$ (triangle inequality).
+
+Still, it's hard to say whether any particular function is
+1-Lipschitz. The following characterization is useful for this:
+
+\begin{theorem}
+\label{diff-lipschitz}
+Let $f:A\to\bb R^n$ be differentiable for $A\subseteq \bb R^m$ open and convex.
+If $||Df(\vec x)||\leq K$ then $f$ is $K$-Lipschitz.\footnote{Here
+$||\cdot||$ is the operator norm, $||M|| = \max_{\vec u} \frac{||M\vec u||}{||\vec u||}$.}
+The converse is also true if $f$ is $C^1$.
+\begin{proof}
+($\implies$) Suppose $f$ is not $K$-Lipschitz, i.e. there exist $\vec x,\vec y\in A$ such that
+$||f(\vec x)-f(\vec y)|| >  K ||\vec x-\vec y||$. By the mean value theorem there is a point $\vec c$
+on the line segment between $\vec x$ and $\vec y$ such that
+$$Df(\vec c)\cdot (\vec x-\vec y) = f(\vec x) - f(\vec y)$$
+So
+$$||Df(\vec c)|| \geq  \frac{||f(\vec x) - f(\vec y)||}{||\vec x-\vec y||} > K$$
+
+($\impliedby$) Now suppose $f$ is $C^1$ and $||Df(\vec x)|| > K$.
+Let $||\vec r|| = 1$ with $Df(\vec x)\cdot \vec r > K$.
+Since $f$ is $C^1$ there is a closed ball $B(\vec x;\ve)$ around $\vec x$ such that
+$Df(\vec a)\cdot \vec r > K$ for all $\vec a\in B(\vec x;\ve)$.
+By the mean value theorem there exists $\vec c$ on the line segment between $\vec x$ and $\vec x+\ve\vec r$
+such that
+$$Df(\vec c)\cdot (\ve\vec r) = f(\vec x+\ve\vec r) - f(\vec x)$$
+$$\ve (Df(\vec c)\cdot \vec r) = f(\vec x+\ve\vec r) - f(\vec x)$$
+$$K\ve < f(\vec x+\ve\vec r) - f(\vec x)$$
+and so $f$ is not $K$-Lipschitz.
+\end{proof}
+\end{theorem}
+
+(It might seem weird to talk about general functions from $\bb R^m$ to $\bb R^n$ since
+raymarching basically only deals with SDFs from $\bb R^3$ to $\bb R$, but this will be useful,
+for example when creating SDFs by composing functions.)
+
+The normal definition of the operator norm doesn't really help us calculate it (it's a pain
+to consider all $\vec u$ with $||\vec u|| = 1$). Helpfully, wikipedia tells us that
+$||M||$ is the square root of the largest eigenvalue of $M\transpose M$.
+This is especially nice for functions $f:\bb R^n\to \bb R$, since $Df$ is just the transpose of the ``gradient''
+vector
+$$\nabla f = \begin{pmatrix}
+\pp f{x_1}\\ \pp f{x_2}\\\cdots\\\pp f{x_n}
+\end{pmatrix}$$
+So
+$$(Df)(Df)^T = \sum_{i=1}^n (\nabla f)_i^2 = ||\nabla f||^2$$
+So in fact
+$$||Df|| = ||\nabla f||.$$
+
+This gives us a very easy way of determining $||Df(\vec x)||$: just compute each of the
+partial derivatives, and take the square root of the sum of their squares.
+
+Finding the total derivative $Df$ can be annoying (requires finding $n^2$ partial derivatives),
+so it's nice to have some tools to reduce the dimension of the domain/codomain of $f$:
+\begin{theorem}
+\label{component-wise}
+If $f:\bb R^n\to\bb R^n$, $f(\vec x) = (f_1(x_1) , f_2(x_2), \dots, f_n(x_n))$
+and $f_i:\bb R\to\bb R$ is $K$-Lipschitz for all $i$ then $f$ is $K$-Lipschitz.
+\begin{proof}
+\begin{align*}
+||f(\vec x) - f(\vec y)||^2 &= \sum_{i=1}^n (f_i(x_i) - f_i(y_i))^2\\
+&\leq \sum_{i=1}^n (K|x_i - y_i|)^2\\
+&= K^2\sum_{i=1}^n (x_i - y_i)^2\\
+&= K^2||\vec x - \vec y||^2
+\end{align*}
+\end{proof}
+\end{theorem}
+
+
+\begin{theorem}
+\label{dim-reduction}
+Let $f:\bb R^m\to\bb R^n$. $f$ is $K$-Lipschitz if and only if
+the function $g_{\vec p,\vec u}:\bb R\to\bb R^n,
+g_{\vec p,\vec u}(x) = f(\vec p + x \vec u)$ is $K$-Lipschitz for all $\vec p,\vec u\in\bb R^n,||\vec u||=1$.
+\begin{proof}
+$(\implies)$
+\begin{align*}
+||g_{\vec p,\vec u}(x) - g_{\vec p,\vec u}(y)|| &= ||f(\vec p + x\vec u) - f(\vec p + y\vec u)||\\
+&\leq K||(\vec p + x\vec u) - (\vec p + y\vec u)||\\
+&= K|x-y|
+\end{align*}
+
+$(\impliedby)$
+Let $\vec x,\vec y\in\bb R^m$. Let $\vec u = \frac{\vec y-\vec x}{||\vec y-\vec x||}$.
+\begin{align*}
+||f(\vec x)-f(\vec y)|| &= ||f(\vec x) - f(\vec x + ||\vec y-\vec x||\vec u)||\\
+&= ||g_{\vec x,\vec u}(0) - g_{\vec x,\vec u}(||\vec y-\vec x||)||\\
+&\leq K||\vec y-\vec x||
+\end{align*}
+\end{proof}
+\end{theorem}
+
+% here is a lemma which i didnt end up using
+% \begin{lemma}
+% \label{x-y-delta}
+% Let $f:\bb R^m\to\bb R^n$ be continuous.
+% If for all $\vec x,\vec y\in\bb R^m,\delta > 0$ there exist
+% $\vec a\in B(\vec x;\delta),\vec b\in B(\vec y;\delta)$ such that
+% $||f(\vec a)-f(\vec b)|| < K||\vec a-\vec b||$, then $f$ is $K$-Lipschitz.
+% \begin{proof}
+% Let $\ve > 0$, and select $\delta<\ve/K$ such that $f$ varies by less than $\ve$ in both
+% $B(\vec x;\delta)$ and $B(\vec y;\delta)$. Take $\vec a,\vec b$ as given by our assumption, then
+% \begin{align*}
+% ||f(\vec x)-f(\vec y)|| &\leq ||f(\vec x) - f(\vec a)|| + ||f(\vec a) - f(\vec b)|| + ||f(\vec b) - f(\vec y)||\\
+% &\leq \ve + K||\vec a-\vec b|| + \ve\\
+% &\leq 2\ve + K(||\vec a - \vec x|| + ||\vec x - \vec y|| + ||\vec y-\vec b||)\\
+% &\leq 2\ve + K(2\delta + ||\vec x - \vec y||)\\
+% &< 4\ve + K||\vec x-\vec y||
+% \end{align*}
+% The $4\ve$ term can be made arbitrarily small, so $||f(\vec x)-f(\vec y)|| \leq K||\vec x-\vec y||$.
+% \end{proof}
+% \end{lemma}
+
+
+\section{examples of 1-Lipschitz functions}
+
+\begin{itemize}
+\item $f:\bb R^n\to \bb R$, $f(\vec x) = ||\vec x||$.
+\item $f:\bb R^n\to \bb R^n$, $f(\vec x) = \vec x + \vec p$ for any fixed $\vec p\in\bb R^n$.
+\item $f:\bb R^n\to \bb R^n$, $f(\vec x) = (|x_1|,\dots,|x_n|)$. This one isn't differentiable.
+\item $f:\bb R^n\to\bb R^n$, $f(\vec x) = (\sin x_1,\dots,\sin x_n)$ --- by Theorem \ref{diff-lipschitz},
+$\sin:\bb R\to\bb R$ is 1-Lipschitz so by Theorem \ref{component-wise}, $f$ is 1-Lipschitz.
+\item Any isometry.
+\end{itemize}
+
+\section{basic closure properties}
+
+To procedurally generate 1-Lipschitz functions, we need rules about how to combine 1-Lipschitz
+functions to produce new 1-Lipschitz functions.
+One such rule is:
+
+\begin{theorem}
+\label{composition}
+If $f : \bb R^m \to \bb R^n$ is $K$-Lipschitz and $g:\bb R^n\to\bb R^l$ is $L$-Lipschitz then
+ $f\circ g:\bb R^m\to\bb R^l$ is $KL$-Lipschitz.
+\begin{proof}
+Let $\vec x,\vec y\in\bb R^m$.
+$$||f(g(\vec x)) - f(g(\vec y))|| \leq K||g(\vec x) - g(\vec y)|| \leq KL||\vec x - \vec y||$$
+\end{proof}
+\end{theorem}
+
+\begin{theorem}
+\label{mixing}
+If $f : \bb R^m \to \bb R^n,g:\bb R^m\to\bb R^n$ are 1-Lipschitz and $t\in[0,1]$ then
+$h(\vec x) = tf(\vec x) + (1-t)g(\vec x)$ is 1-Lipschitz.
+\begin{proof}
+Let $\vec x,\vec y\in\bb R^n$.
+\begin{align*}
+||h(\vec x) - h(\vec y)|| &= ||tf(\vec x) + (1-t)g(\vec x) - tf(\vec y) - (1-t)g(\vec y)||\\
+&= ||t(f(\vec x) - f(\vec y)) + (1-t)(g(\vec x) - g(\vec y))||\\
+&\leq t||f(\vec x) - f(\vec y)|| + (1-t)||g(\vec x) - g(\vec y)||\\
+&\leq t + 1 - t = 1
+\end{align*}
+\end{proof}
+\end{theorem}
+
+\begin{theorem}
+\label{minmax}
+If $f,g:\bb R^m\to\bb R$ are 1-Lipschitz then
+$$\vec x\mapsto \min\{f(\vec x),g(\vec x)\},~~\vec x\mapsto \max\{f(\vec x),g(\vec x)\}$$
+are too.
+\begin{proof}
+\begin{align*}
+|h(\vec x)-h(\vec y)| &= | \min\{f(\vec x),g(\vec x)\} - \min\{f(\vec y),g(\vec y)\}|
+\end{align*}
+$\max$ follows from $\max\{a,b\} = -\min\{-a,-b\}$ (negating a 1-Lipschitz function gives
+a 1-Lipschitz function).
+\end{proof}
+\end{theorem}
+
+
+\section{products?}
+Unfortunately given differentiable 1-Lipschitz functions $f,g$, the product function $x\mapsto f(x)g(x)$
+is not necessarily Lipschitz continuous. However we can define a modified product which does
+preserve 1-Lipschitz continuity.
+
+Given $f,g:\bb R^n \to \bb R$ 1-Lipschitz and differentiable, define
+$$h(\vec x) = \sin (f(\vec x))\cos(g(\vec x))$$
+Clearly $h$ is also differentiable, we will show that it is 1-Lipschitz.
+$$\pp h{x_i} = \cos(f(\vec x))\cos(g(\vec x)) \pp{f(\vec x)}{x_i}- \sin(f(\vec x))\sin(g(\vec x))  \pp{g(\vec x)}{x_i}$$
+so letting $f(\vec x) = a,~g(\vec x)= b,~p = \cos a\cos b,~q = \sin a\sin b,~\pp{f(\vec x)}{x_i} = s_i,~\pp{g(\vec x)}{x_i} = t_i$, we have
+\begin{align*}
+||Dh(\vec x)||^2 &= \sum_{i=1}^n \left[ps_i - qt_i\right]^2\\
+&=p^2\l(\sum_{i=1}^n  s_i^2\r) +  q^2\l(\sum_{i=1}^n  t_i^2\r)- 2pq\l(\sum_{i=1}^n s_it_i\r)\\
+&=p^2||\vec s|| + q^2||\vec t||- 2pq(\vec s\cdot \vec t)\\
+&\leq p^2||\vec s|| + q^2||\vec t||+ 2pq||\vec s||\,||\vec t||\\
+\intertext{Note that $\vec s = Df(\vec x)^T,\vec t=Df(\vec x)^T$ and so $||\vec s||,||\vec t|| \leq 1$:}
+&\leq p^2 + q^2 + 2pq\\
+&= (p+q)^2\\
+&= (\cos a\cos b + \sin a\sin b)^2\\
+&= \cos^2(a-b) \leq 1
+\end{align*}
+
+And this bound is as strict as possible: we can definitely imagine $f,g$ satisfying
+$f(\vec x) = 0,g(\vec x)=\pi/2, Df(\vec x)\cdot Dg(\vec x) = -1$ for example (you can verify that this
+makes $||Dh(\vec x)|| = 1$).
+
+% i don't know about this section
+% it's pretty long and maybe not very helpful
+% \section{twisty function}
+% One function which might look interesting is
+% $$f(x,y,z) =(x\cos(\theta(z)) + y\sin(\theta(z)), y\cos(\theta(z)) - x\sin(\theta(z)), z)$$
+% where $\theta:\bb R\to\bb R$ is some function.
+% This can only work for $(x,y)$ bounded:
+% we want $\theta$ to only be dependent on $z$, since we want the plane $z=c$ to be rotated
+% all by the same angle, but then taking $(x,y)$ large enough, moving $z$ up by a tiny bit will drastically
+% change $x,y$.
+% So let's take $||(x,y)|| \leq 1$ for now.
+% We'll abbreviate $\theta(z)$ as just $\theta$.
+% 
+% $$f(x,y,z) =(x\cos\theta + y\sin\theta, y\cos\theta - x\sin\theta, z)$$
+% $$\frac{\partial f_1}{\partial x} = \cos\theta$$
+% $$\frac{\partial f_1}{\partial y} = \sin\theta$$
+% \begin{align*}
+% \frac{\partial f_1}{\partial z} &= -x\sin\theta\dd4\theta z + y\cos\theta\dd\theta z\\
+% &= u\theta'~~~~~\text{where $u=-x\sin\theta + y\cos\theta$}
+% \end{align*}
+% $$\frac{\partial f_2}{\partial x} = -\sin\theta$$
+% $$\frac{\partial f_2}{\partial y} = \cos\theta$$
+% \begin{align*}
+% \frac{\partial f_2}{\partial z} &= -y\sin\theta\pp\theta z - x\cos\theta\pp\theta z\\
+% &= v\theta'~~~~\text{where $v=-x\cos\theta - y\sin\theta$}
+% \end{align*}
+% Of course $\pp {f_3} x=\pp{f_3}y=0,\pp{f_3}z=1$. This gives us the derivative
+% $$Df = \begin{pmatrix}
+% \cos\theta&\sin\theta&u\theta'\\
+% -\sin\theta&\cos\theta&v\theta'\\
+% 0&0&1
+% \end{pmatrix}$$
+% $$(Df)(r,s,t) = \begin{pmatrix}
+% r\cos\theta + s\sin\theta + u\theta't\\
+% s\cos\theta - r\sin\theta + v\theta't\\
+% t
+% \end{pmatrix}$$
+% \begin{align*}
+% ||(Df)(r,s,t)||^2 &= 
+% (r\cos\theta)^2 + (s\sin\theta)^2 + (u\theta't)^2\\
+% &~~+ 2rs\cos\theta\sin\theta + 2rtu\theta'\cos\theta
+% + 2stu\theta'\sin\theta\\
+% &~~+(s\cos\theta)^2 + (-r\sin\theta)^2 + (v\theta't)^2\\
+% &~~- 2rs\cos\theta\sin\theta + 2stv\theta'\cos\theta
+% - 2rtv\theta'\sin\theta + t^2\\
+% &= (r^2+s^2)(\cos^2\theta + \sin^2\theta) + (u^2+v^2)(\theta't)^2\\
+% &~~+2t\theta'((ru+sv)\cos\theta + (su-rv)\sin\theta)\\
+% &= ||(r,s)||^2 + ||(u,v)||^2
+%  + 2t\theta'((ru+sv)\cos\theta + (su-rv)\sin\theta) + t^2
+% \end{align*}
+% Now let's take $||(r,s,t)||,||(u,v)||\leq 1$. Note
+% that $ru+sv = (r,s)\cdot (u,v) \leq ||(r,s)||$ and likewise
+% $su-rv\leq ||(s,-r)||=||(r,s)||$. So then
+% \begin{align*}
+% ||(Df)(r,s,t)||^2  &\leq 2 + 2\theta't||(r,s)||(\cos\theta + \sin\theta) + t^2\\
+% &\leq2 + 2\theta't||(r,s)||\sqrt2 + t^2\\
+% \end{align*}
+% {\Large\bf TODO}
+% 
+\end{document}

@@ -4,6 +4,8 @@ tags
 *.out
 *.dll
 *.lib
+*.aux
+*.log
 scenes.txt
 autosdf
 *.zip
