@@ -1,13 +1,15 @@
 /*
 @TODO:
+- screenshot
+- RnToRn functions (& add back in RToR)
 - let user go back&forth through past sdfs using scenes.txt file
 - documentation
 - GenRandom integers (just use 0..u32::MAX and add a modulus)
-- record a video
 - blender-style rendering the picture in multiple frames
    (this lets us look at super complicated SDFs while still processing input, etc. at 60 fps)
 - better SDL api: Context  +  Window<'a> impl !Send+!Sync
 - gallery view
+- record a cool video
 */
 
 #![windows_subsystem = "windows"]

@@ -200,6 +200,8 @@ pub enum R3ToR3 {
 	Wibbly,
 	#[prob(2)]
 	Sqrt(Constant),
+	// this was removed at some point.
+	// it doesn't really seem to be helpful.
 	#[prob(0)]
 	Twisty(Constant),
 }
