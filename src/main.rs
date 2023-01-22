@@ -1,6 +1,7 @@
 /*
 @TODO:
 - screenshot
+- pause screen
 - strip ' ' and '\n' from *inside* string
 - flash error on bad string
 - RnToRn functions (& add back in RToR)
