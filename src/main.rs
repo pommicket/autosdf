@@ -2,6 +2,8 @@
 @TODO:
 - screenshot
 - pause screen
+- start time at -3 seconds
+- autoplay setting
 - strip ' ' and '\n' from *inside* string
 - flash error on bad string
 - RnToRn functions (& add back in RToR)
