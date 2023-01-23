@@ -1,11 +1,9 @@
 /*
 @TODO:
-- screenshot
 - pause screen
-- start time at -3 seconds
 - autoplay setting
 - strip ' ' and '\n' from *inside* string
-- flash error on bad string
+- flash error on bad string (see @TODO(error handling))
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
 - ProjectX, ProjectY, ProjectZ in R3ToR?
@@ -20,18 +18,21 @@
 */
 
 #![windows_subsystem = "windows"]
+extern crate chrono;
 extern crate nalgebra;
+extern crate png;
 
 pub mod sdf;
 mod sdl;
 pub mod win;
 
+use chrono::prelude::*;
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use sdf::ImportExport;
 use std::{
 	collections::HashMap,
 	fs::File,
-	io::{prelude::*, BufReader},
+	io::{prelude::*, BufReader, BufWriter},
 	time::Instant,
 };
 use win::{ColorF32, ColorGrayscaleF32, ColorU8};
@@ -49,6 +50,7 @@ enum Icon {
 	Play = 2,
 	Pause = 3,
 	Rewind = 4,
+	Screenshot = 5,
 }
 
 #[derive(Clone)]
@@ -160,7 +162,7 @@ impl Programs {
 			.link_program(&mut self.test, vsource_test, &fsource_test)
 			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
 		window
-			.link_program(&mut self.post, vsource_post, &fsource_post)
+			.link_program(&mut self.post, vsource_post, fsource_post)
 			.map_err(|e| format!("Error compiling shader:\n{e}"))?;
 		Ok(())
 	}
@@ -275,15 +277,14 @@ impl State {
 			win::FramebufferAttachment::Color0,
 			&test_framebuffer_texture,
 		);
-		
-		
+
 		let main_texconfig = win::TextureParams {
 			mag_filter: win::TextureFilter::Nearest,
 			..Default::default()
 		};
 		let main_framebuffer_texture = window.create_texture(&main_texconfig);
 		let main_framebuffer = window.create_framebuffer();
-		
+
 		let mut main_buffer = window.create_buffer();
 		let mut test_buffer = window.create_buffer();
 		let mut post_buffer = window.create_buffer();
@@ -368,8 +369,8 @@ impl State {
 				self.window.bind_framebuffer(None);
 
 				let mut sdf_values: Vec<f32> = self
-					.window
-					.get_texture_data_vec::<ColorGrayscaleF32>(&self.test_framebuffer_texture)
+					.test_framebuffer_texture
+					.get_data_vec::<ColorGrayscaleF32>()
 					.iter()
 					.map(|c| c.value)
 					.collect();
@@ -394,20 +395,64 @@ impl State {
 	fn flash(&mut self, icon: Icon) {
 		self.flash = match icon {
 			Icon::None => ColorF32::BLACK,
-			Icon::Copy => ColorF32::GREEN,
+			Icon::Copy | Icon::Screenshot => ColorF32::GREEN,
 			_ => ColorF32::rgb(1.0, 0.5, 0.0),
 		};
 		self.flash_icon = icon;
 	}
-	
+
 	fn render_resolution(&self) -> (i32, i32) {
 		let scale = self.settings.get_f32("scale").unwrap_or(1.0);
-		if scale <= 0.0 || scale > 1.0 {
+		if scale <= 0.0 || scale > 100.0 {
 			win::display_error_message(&format!("bad scale: {scale}"));
 			std::process::exit(1);
 		}
 		let (w, h) = self.window.size();
-		((w as f32 * scale) as i32, (h as f32 * scale) as i32)
+		let w = (w as f32 * scale) as i32;
+		let h = (h as f32 * scale) as i32;
+		assert!(w >= 0);
+		assert!(h >= 0);
+		(w, h)
+	}
+
+	/// save a screenshot
+	fn take_screenshot(&mut self) -> Result<(), String> {
+		let texture = &self.main_framebuffer_texture;
+		let size = (texture.width(), texture.height());
+		let texture_data = texture.get_data_vec();
+		if size.0 == 0 || size.1 == 0 {
+			// there isnt anything to save . why did you set the scale so small...
+			return Ok(());
+		}
+		let time = Utc::now();
+		let filename = time
+			.format("screenshots/autosdf-%Y-%m-%d-%H-%M-%S.png")
+			.to_string();
+		if std::fs::create_dir("screenshots").is_err() {
+			// (do nothing.)
+			// we get an error if it already exists.
+			// even if this is another error, that will just make File::create fail.
+		}
+		let file =
+			File::create(&filename).map_err(|e| format!("error creating {filename}: {e}"))?;
+		let mut writer = BufWriter::new(file);
+		let mut encoder = png::Encoder::new(&mut writer, size.0 as u32, size.1 as u32);
+		encoder.set_color(png::ColorType::Rgba);
+		encoder.set_depth(png::BitDepth::Eight);
+		encoder
+			.add_text_chunk(
+				"\n\n\n\nAutoSDF scene".to_string(),
+				"\n".to_string() + &self.scene.export_string() + "\n\n\n\n",
+			)
+			.map_err(|e| format!("error adding PNG tEXt chunk for {filename}: {e}"))?;
+		let mut png_writer = encoder
+			.write_header()
+			.map_err(|e| format!("error writing PNG header for {filename}: {e}"))?;
+		png_writer
+			.write_image_data(ColorU8::slice_to_bytes(&texture_data))
+			.map_err(|e| format!("error writing {filename}: {e}"))?;
+		self.flash(Icon::Screenshot);
+		Ok(())
 	}
 
 	// returns false if we should quit
@@ -441,6 +486,7 @@ impl State {
 					match self.window.set_clipboard_text(&self.scene.export_string()) {
 						Ok(()) => {}
 						Err(e) => {
+							// @TODO(error handling)
 							eprintln!("couldn't copy text to clipboard: {e}")
 						}
 					}
@@ -460,16 +506,27 @@ impl State {
 								self.load_scene(new_scene);
 							}
 							None => {
+								// @TODO(error handling)
 								eprintln!("bad string")
 							}
 						},
 						Err(e) => {
-							// very unlikely to happen
+							// @TODO(error handling)
 							eprintln!("couldn't get clipboard text: {e}")
 						}
 					}
 				}
 				KeyDown { key: N0, .. } => self.view = self.initial_view.clone(),
+				KeyDown { key: F10, .. } => {
+					// screenshot
+					match self.take_screenshot() {
+						Ok(()) => {}
+						Err(e) => {
+							// @TODO(error handling)
+							eprintln!("screenshot fail: {e}");
+						}
+					}
+				}
 				KeyDown {
 					key: Space,
 					modifier,
@@ -564,20 +621,24 @@ impl State {
 
 		let render_resolution = self.render_resolution();
 		if render_resolution != self.main_framebuffer_size {
-			let result = self.main_framebuffer_texture.set_data::<ColorU8>(None, render_resolution.0 as usize, render_resolution.1 as usize);
-			
+			let result = self.main_framebuffer_texture.set_data::<ColorU8>(
+				None,
+				render_resolution.0 as usize,
+				render_resolution.1 as usize,
+			);
+
 			match result {
-				Ok(()) => {},
+				Ok(()) => {}
 				Err(e) => eprintln!("warning:{e}"),
 			}
-			
+
 			self.main_framebuffer.set_texture(
 				win::FramebufferAttachment::Color0,
 				&self.main_framebuffer_texture,
 			);
 			self.main_framebuffer_size = render_resolution;
 		}
-		
+
 		let window = &mut self.window;
 		let view = &self.view;
 		window.viewport(0, 0, render_resolution.0, render_resolution.1);
@@ -585,7 +646,10 @@ impl State {
 		window.clear_screen(win::ColorF32::BLACK);
 		window.use_program(&self.programs.main);
 		window.bind_framebuffer(Some(&self.main_framebuffer));
-		window.uniform1f("u_aspect_ratio", render_resolution.0 as f32 / render_resolution.1 as f32);
+		window.uniform1f(
+			"u_aspect_ratio",
+			render_resolution.0 as f32 / render_resolution.1 as f32,
+		);
 		{
 			let (w, h) = window.size();
 			window.uniform2f("u_screen_size", w as f32, h as f32);
@@ -623,7 +687,7 @@ impl State {
 		}
 
 		self.main_array.draw();
-		
+
 		window.bind_framebuffer(None);
 		window.viewport_full_screen();
 		window.use_program(&self.programs.post);
@@ -632,7 +696,7 @@ impl State {
 		self.post_array.draw();
 
 		window.swap();
-		
+
 		if self.show_debug_info {
 			println!("frame time = {:?}ms", frame_dt * 1000.0);
 		}

@@ -1,5 +1,6 @@
 target
 tags
+screenshots
 *.swp
 *.out
 *.dll

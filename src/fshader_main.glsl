@@ -20,6 +20,7 @@ uniform int u_flash_icon;
 #define ICON_PLAY 2
 #define ICON_PAUSE 3
 #define ICON_REWIND 4
+#define ICON_SCREENSHOT 5
 
 %COMMON%
 %SDF%
@@ -131,6 +132,7 @@ void main() {
 	switch (u_flash_icon) {
 	case 0: break;
 	case ICON_COPY:
+	case ICON_SCREENSHOT:
 		icon = abs(pos.x) > u_aspect_ratio - 0.1 || abs(pos.y) > 0.9;
 		break;
 	case ICON_PLAY:

@@ -738,16 +738,18 @@ impl SDL_Surface {
 		self.flags
 	}
 	pub fn width(&self) -> i32 {
-		self.w.try_into().unwrap()
+		assert!(self.w >= 0);
+		self.w
 	}
 	pub fn height(&self) -> i32 {
-		self.h.try_into().unwrap()
+		assert!(self.h >= 0);
+		self.h
 	}
 	pub fn pitch(&self) -> i32 {
-		self.pitch.try_into().unwrap()
+		self.pitch
 	}
 	pub fn locked(&self) -> i32 {
-		self.locked.try_into().unwrap()
+		self.locked
 	}
 	pub fn pixel_format(&self) -> &SDL_PixelFormat {
 		// SAFETY: this should be a valid pointer as long as self is a valid SDL_Surface

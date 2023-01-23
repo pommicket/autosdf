@@ -2,6 +2,7 @@ mouse-sensitivity 50
 #    you can set this to 0.5 to render the SDF at half resolution for example
 #    (e.g. the SDF will be rendered at 960x540 on a 1080p monitor)
 #    making this lower will increase performance significantly, but will look more pixelated
+#    you can also make this higher to take super high-res screenshots (but it will run slower)
 scale 1
 #    complexity of SDF
 #    making this bigger will make more complex scenes, but will require more gpu computation

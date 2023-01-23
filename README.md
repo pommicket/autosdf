@@ -12,7 +12,7 @@ you can also reduce `max-iterations` and increase `distance-threshold` if it's s
 - move mouse to look around
 - W,A,S,D/arrow keys to move forward/backwards/left/right + Q,E/PageUp,PageDown to move up/down
 - R to create a new SDF - use this a lot! most SDFs are boring!
-- Space to "unpause time" (start animating). On some SDFs this might not do much.
+- Space to "unpause time" (start animating).
   Press space again to pause time, and shift+space to rewind time.
 - [ and ] to go forwards and backwards in time
 - 0 to reset location + time
@@ -20,6 +20,7 @@ you can also reduce `max-iterations` and increase `distance-threshold` if it's s
 - Ctrl+C to copy SDF to clipboard, Ctrl+V to paste SDF from clipboard. On Linux
   if you close the application the clipboard contents will be lost (thanks a lot X11).
 - F to go fullscreen
+- F10 to take a screenshot (will be saved to a folder called `screenshots`)
 - Escape to quit
 - You can use Shift to move faster and Ctrl to move slower.
 

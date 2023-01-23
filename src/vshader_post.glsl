@@ -1,4 +1,4 @@
-attribute vec2 v_pos;
+IN vec2 v_pos;
 OUT vec2 uv;
 
 void main() {

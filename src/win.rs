@@ -561,6 +561,15 @@ impl ColorU8 {
 		assert_eq!(suffix.len(), 0);
 		colors
 	}
+
+	pub fn slice_to_bytes(slice: &[ColorU8]) -> &[u8] {
+		// SAFETY: it is safe to transmute since ColorU8 is repr(C)
+		let (prefix, bytes, suffix) = unsafe { slice.align_to() };
+		// these should never panic since align_of(u8) == 1
+		assert_eq!(prefix.len(), 0);
+		assert_eq!(suffix.len(), 0);
+		bytes
+	}
 }
 
 impl From<u32> for ColorU8 {
@@ -1003,19 +1012,21 @@ impl Texture {
 	}
 
 	/// panicks if `data` is the wrong length (should be exactly `self.width() * self.height()`).
-	unsafe fn get_data<T: Color>(&self, data: &mut [T]) {
+	pub fn get_data<T: Color>(&self, data: &mut [T]) {
 		assert_eq!(data.len(), self.width * self.height, "Bad data size.");
 		self.bind();
-		gl::GetTexImage(
-			gl::TEXTURE_2D,
-			0,
-			T::GL_FORMAT,
-			T::GL_TYPE,
-			data.as_ptr() as *mut GLvoid,
-		);
+		unsafe {
+			gl::GetTexImage(
+				gl::TEXTURE_2D,
+				0,
+				T::GL_FORMAT,
+				T::GL_TYPE,
+				data.as_ptr() as *mut GLvoid,
+			);
+		}
 	}
 
-	unsafe fn get_data_vec<T: Color>(&self) -> Vec<T> {
+	pub fn get_data_vec<T: Color>(&self) -> Vec<T> {
 		let mut data = vec![T::default(); self.width * self.height];
 		self.get_data(&mut data);
 		data
@@ -1120,7 +1131,7 @@ impl Framebuffer {
 	pub fn set_texture(&mut self, attachment: FramebufferAttachment, texture: &Texture) {
 		self.bind();
 		texture.bind();
-		unsafe { 
+		unsafe {
 			gl::FramebufferTexture2D(
 				gl::FRAMEBUFFER,
 				attachment.to_gl(),
@@ -1364,18 +1375,6 @@ impl Window {
 
 	pub fn create_texture(&mut self, params: &TextureParams) -> Texture {
 		unsafe { Texture::new(params) }
-	}
-
-	/// get texture image
-	///
-	/// panicks if `data.len() != texture.width() * texture.height()`
-	pub fn get_texture_data<T: Color>(&mut self, texture: &Texture, data: &mut [T]) {
-		unsafe { texture.get_data(data) };
-	}
-
-	/// get texture image as a newly-allocated `Vec`
-	pub fn get_texture_data_vec<T: Color>(&mut self, texture: &Texture) -> Vec<T> {
-		unsafe { texture.get_data_vec() }
 	}
 
 	pub fn set_audio_callback(&mut self, callback: AudioCallback) -> Result<(), String> {

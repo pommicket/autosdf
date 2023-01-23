@@ -30,7 +30,6 @@ impl GenRandomParams for SdfParams {
 	fn inc_depth(self) -> Self {
 		Self {
 			max_depth: self.max_depth - 1,
-			..self
 		}
 	}
 }
