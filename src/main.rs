@@ -1,7 +1,7 @@
 /*
 @TODO:
 - pause screen
-- autoplay setting
+- reload settings.txt when changed
 - strip ' ' and '\n' from *inside* string
 - flash error on bad string (see @TODO(error handling))
 - RnToRn functions (& add back in RToR)
@@ -379,10 +379,13 @@ impl State {
 					.select_nth_unstable_by(i, |a, b| a.total_cmp(b))
 					.1;
 				drop(sdf_values);
-				let initial_view = View {
+				let mut initial_view = View {
 					level_set,
 					..Default::default()
 				};
+				if self.settings.get_i32("autoplay").unwrap_or(0) != 0 {
+					initial_view.unpause(false);
+				}
 				self.initial_view = initial_view.clone();
 				self.view = initial_view;
 			}

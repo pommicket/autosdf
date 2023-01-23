@@ -23,9 +23,11 @@ antialiasing 1
 #    focal length in "meters"
 focal-length 1
 #    field of view in degrees
-fov 45
+fov 90
 #    set this to 1 to use HSV instead of RGB for color
 hsv 0
+#    set this to 1 to automatically start playing SDFs when they load
+autoplay 0
 #    framerate cap.
 #    by default, vsync is enabled, so you don't need to change this unless you want
 #    to run at an even lower framerate than your monitor's refresh rate
