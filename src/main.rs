@@ -42,6 +42,8 @@ type Mat3 = Matrix3<f32>;
 type Mat4 = Matrix4<f32>;
 type Rot3 = Rotation3<f32>;
 
+const MENU_SCALE: f32 = 0.5;
+
 #[repr(i32)]
 #[derive(Clone, Copy)]
 enum Icon {
@@ -281,7 +283,7 @@ impl State {
 		);
 
 		let main_texconfig = win::TextureParams {
-			mag_filter: win::TextureFilter::Nearest,
+			mag_filter: win::TextureMagFilter::Nearest,
 			..Default::default()
 		};
 		let main_framebuffer_texture = window.create_texture(&main_texconfig);
@@ -313,7 +315,9 @@ impl State {
 
 		let menu_texture = {
 			let params = win::TextureParams {
-				min_filter: win::TextureFilter::Linear,
+				min_filter: win::TextureMinFilter::LinearMipmapLinear,
+				wrap_mode: win::TextureWrap::ClampToEdge.both(),
+				mipmap: true,
 				..Default::default()
 			};
 			let mut tex = window.create_texture(&params);
@@ -507,12 +511,11 @@ impl State {
 			use win::Key::*;
 			match event {
 				Quit => return false,
+				KeyDown {
+					key: Q, modifier, ..
+				} if modifier.ctrl() => return false,
 				KeyDown { key: Escape, .. } => {
-					if self.esc_menu {
-						return false;
-					} else {
-						self.esc_menu = true;
-					}
+					self.esc_menu = !self.esc_menu;
 				}
 				KeyDown { key: F1, .. } => self.show_debug_info = !self.show_debug_info,
 				KeyDown { key: R, .. } => {
@@ -741,6 +744,11 @@ impl State {
 		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
 		window.uniform_texture("u_main_texture", 0);
 		window.uniform_texture("u_menu_texture", 1);
+		window.uniform1f(
+			"u_aspect_ratio",
+			render_resolution.0 as f32 / render_resolution.1 as f32,
+		);
+		window.uniform1f("u_menu_scale", MENU_SCALE);
 		self.post_array.draw();
 
 		window.swap();

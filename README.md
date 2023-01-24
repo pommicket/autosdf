@@ -22,7 +22,7 @@ you can also reduce `max-iterations` and increase `distance-threshold` if it's s
 - F to go fullscreen
 - F10 to take a screenshot (saved to a folder called `screenshots`). The SDF string
   is saved in the PNG file's metadata. If you open it with notepad, you'll see it towards the beginning of the file.
-- Press Escape twice to quit
+- Press Ctrl+Q to quit (or press escape and click the "quit" button)
 - You can use Shift to move faster and Ctrl to move slower.
 
 ## saving SDFs

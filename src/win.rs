@@ -953,7 +953,17 @@ extern "system" fn gl_message_callback(
 	if severity == gl::DEBUG_SEVERITY_NOTIFICATION {
 		return;
 	}
-	println!("Message from opengl: {message}");
+	static COUNT: Mutex<u32> = Mutex::new(0);
+	if let Ok(mut count) = COUNT.lock() {
+		let max_messages = 10;
+		if *count < max_messages {
+			println!("Message from opengl: {message}");
+			*count += 1;
+			if *count == max_messages {
+				println!("....Further messages from opengl will not be displayed.");
+			}
+		}
+	}
 }
 
 pub struct Texture {
@@ -1044,6 +1054,25 @@ impl Texture {
 				gl::TEXTURE_MAG_FILTER,
 				params.mag_filter.to_gl(),
 			);
+			gl::TexParameteri(
+				gl::TEXTURE_2D,
+				gl::TEXTURE_WRAP_S,
+				params.wrap_mode.0.to_gl(),
+			);
+			gl::TexParameteri(
+				gl::TEXTURE_2D,
+				gl::TEXTURE_WRAP_T,
+				params.wrap_mode.1.to_gl(),
+			);
+			gl::TexParameterfv(
+				gl::TEXTURE_2D,
+				gl::TEXTURE_BORDER_COLOR,
+				&params.border_color.r as *const f32,
+			);
+
+			if params.mipmap {
+				gl::GenerateMipmap(gl::TEXTURE_2D);
+			}
 		}
 		Ok(())
 	}
@@ -1084,33 +1113,91 @@ impl Drop for Texture {
 	}
 }
 
-#[derive(Copy, Clone)]
-pub enum TextureFilter {
+#[derive(Copy, Clone, Debug)]
+pub enum TextureMinFilter {
+	Nearest,
+	Linear,
+	NearestMipmapNearest,
+	LinearMipmapNearest,
+	NearestMipmapLinear,
+	LinearMipmapLinear,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum TextureMagFilter {
 	Nearest,
 	Linear,
 }
 
-impl TextureFilter {
+impl TextureMinFilter {
 	fn to_gl(self) -> GLint {
-		use TextureFilter::*;
-		match self {
-			Nearest => gl::NEAREST as _,
-			Linear => gl::LINEAR as _,
-		}
+		use TextureMinFilter::*;
+		(match self {
+			Nearest => gl::NEAREST,
+			Linear => gl::LINEAR,
+			NearestMipmapNearest => gl::NEAREST_MIPMAP_NEAREST,
+			LinearMipmapNearest => gl::LINEAR_MIPMAP_NEAREST,
+			NearestMipmapLinear => gl::NEAREST_MIPMAP_LINEAR,
+			LinearMipmapLinear => gl::LINEAR_MIPMAP_LINEAR,
+		}) as _
+	}
+}
+
+impl TextureMagFilter {
+	fn to_gl(self) -> GLint {
+		use TextureMagFilter::*;
+		(match self {
+			Nearest => gl::NEAREST,
+			Linear => gl::LINEAR,
+		}) as _
+	}
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TextureWrap {
+	ClampToEdge,
+	ClampToBorder,
+	MirroredRepeat,
+	Repeat,
+	MirrorClampToEdge,
+}
+
+impl TextureWrap {
+	fn to_gl(self) -> GLint {
+		use TextureWrap::*;
+		(match self {
+			ClampToEdge => gl::CLAMP_TO_EDGE,
+			ClampToBorder => gl::CLAMP_TO_BORDER,
+			MirroredRepeat => gl::MIRRORED_REPEAT,
+			Repeat => gl::REPEAT,
+			MirrorClampToEdge => gl::MIRROR_CLAMP_TO_EDGE,
+		}) as _
+	}
+
+	/// use this wrap mode for both dimensions
+	pub fn both(self) -> (Self, Self) {
+		(self, self)
 	}
 }
 
 #[derive(Clone)]
 pub struct TextureParams {
-	pub min_filter: TextureFilter,
-	pub mag_filter: TextureFilter,
+	pub min_filter: TextureMinFilter,
+	pub mag_filter: TextureMagFilter,
+	/// (wrap mode for s, wrap mode for t)
+	pub wrap_mode: (TextureWrap, TextureWrap),
+	pub border_color: ColorF32,
+	pub mipmap: bool,
 }
 
 impl Default for TextureParams {
 	fn default() -> Self {
 		Self {
-			min_filter: TextureFilter::Nearest,
-			mag_filter: TextureFilter::Linear,
+			min_filter: TextureMinFilter::Nearest,
+			mag_filter: TextureMagFilter::Linear,
+			wrap_mode: TextureWrap::Repeat.both(),
+			border_color: ColorF32::rgba(0.0, 0.0, 0.0, 0.0),
+			mipmap: false,
 		}
 	}
 }
