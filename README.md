@@ -20,8 +20,9 @@ you can also reduce `max-iterations` and increase `distance-threshold` if it's s
 - Ctrl+C to copy SDF to clipboard, Ctrl+V to paste SDF from clipboard. On Linux
   if you close the application the clipboard contents will be lost (thanks a lot X11).
 - F to go fullscreen
-- F10 to take a screenshot (will be saved to a folder called `screenshots`)
-- Escape to quit
+- F10 to take a screenshot (saved to a folder called `screenshots`). The SDF string
+  is saved in the PNG file's metadata. If you open it with notepad, you'll see it towards the beginning of the file.
+- Press Escape twice to quit
 - You can use Shift to move faster and Ctrl to move slower.
 
 ## saving SDFs

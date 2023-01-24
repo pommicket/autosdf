@@ -494,6 +494,38 @@ pub struct ColorU8 {
 	pub a: u8,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct ColorGrayscaleU8 {
+	pub value: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct ColorGrayscaleF32 {
+	pub value: f32,
+}
+
+unsafe impl Color for ColorU8 {
+	const GL_FORMAT: GLenum = gl::RGBA;
+	const GL_TYPE: GLenum = gl::UNSIGNED_BYTE;
+}
+
+unsafe impl Color for ColorGrayscaleU8 {
+	const GL_FORMAT: GLenum = gl::RED;
+	const GL_TYPE: GLenum = gl::UNSIGNED_BYTE;
+}
+
+unsafe impl Color for ColorF32 {
+	const GL_FORMAT: GLenum = gl::RGBA;
+	const GL_TYPE: GLenum = gl::FLOAT;
+}
+
+unsafe impl Color for ColorGrayscaleF32 {
+	const GL_FORMAT: GLenum = gl::RED;
+	const GL_TYPE: GLenum = gl::FLOAT;
+}
+
 impl fmt::Display for ColorU8 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
@@ -508,11 +540,6 @@ impl fmt::Debug for ColorU8 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", self)
 	}
-}
-
-unsafe impl Color for ColorU8 {
-	const GL_FORMAT: GLenum = gl::RGBA;
-	const GL_TYPE: GLenum = gl::UNSIGNED_BYTE;
 }
 
 impl ColorU8 {
@@ -603,26 +630,34 @@ impl ColorF32 {
 	}
 }
 
-unsafe impl Color for ColorF32 {
-	const GL_FORMAT: GLenum = gl::RGBA;
-	const GL_TYPE: GLenum = gl::FLOAT;
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct ColorGrayscaleF32 {
-	pub value: f32,
-}
-
 impl ColorGrayscaleF32 {
 	pub const fn new(value: f32) -> Self {
 		Self { value }
 	}
 }
 
-unsafe impl Color for ColorGrayscaleF32 {
-	const GL_FORMAT: GLenum = gl::RED;
-	const GL_TYPE: GLenum = gl::FLOAT;
+impl ColorGrayscaleU8 {
+	pub const fn new(value: u8) -> Self {
+		Self { value }
+	}
+
+	pub fn slice_from_bytes(bytes: &[u8]) -> &[ColorGrayscaleU8] {
+		// SAFETY: it is safe to transmute since ColorGrayscaleU8 is repr(C)
+		let (prefix, colors, suffix) = unsafe { bytes.align_to() };
+		// these should never panic since align_of(ColorGrayscaleU8) == 1
+		assert_eq!(prefix.len(), 0);
+		assert_eq!(suffix.len(), 0);
+		colors
+	}
+
+	pub fn slice_to_bytes(slice: &[ColorGrayscaleU8]) -> &[u8] {
+		// SAFETY: it is safe to transmute since ColorGrayscaleU8 is repr(C)
+		let (prefix, bytes, suffix) = unsafe { slice.align_to() };
+		// these should never panic since align_of(u8) == 1
+		assert_eq!(prefix.len(), 0);
+		assert_eq!(suffix.len(), 0);
+		bytes
+	}
 }
 
 pub struct Shader {
@@ -960,6 +995,16 @@ impl Texture {
 		let width: GLsizei = width.try_into().map_err(|_| "width too large")?;
 		let height: GLsizei = height.try_into().map_err(|_| "height too large")?;
 		let expected_len = width * height;
+
+		#[cfg(debug_assertions)]
+		{
+			let color_size = std::mem::size_of::<T>();
+			if width as usize * color_size % 4 != 0 {
+				eprintln!("WARNING: This texture has a width of {width} * {color_size} = {} bytes, which is not a multiple of 4.",
+					width as usize * color_size);
+				eprintln!("         See https://www.khronos.org/opengl/wiki/Common_Mistakes#Texture_upload_and_pixel_reads for more information.");
+			}
+		}
 
 		let ptr = match data {
 			Some(data) => {

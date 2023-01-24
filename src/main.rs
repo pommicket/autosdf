@@ -230,6 +230,7 @@ struct State {
 	initial_view: View,
 	show_debug_info: bool,
 	fullscreen: bool,
+	esc_menu: bool,
 	frame_time: Instant,
 	programs: Programs,
 	config: sdf::SceneConfig,
@@ -240,6 +241,7 @@ struct State {
 	test_framebuffer: win::Framebuffer,
 	main_framebuffer_texture: win::Texture,
 	main_framebuffer: win::Framebuffer,
+	menu_texture: win::Texture,
 	main_framebuffer_size: (i32, i32),
 	main_array: win::VertexArray,
 	test_array: win::VertexArray,
@@ -303,13 +305,37 @@ impl State {
 		let test_array = window.create_vertex_array(test_buffer, &programs.test);
 		let post_array = window.create_vertex_array(post_buffer, &programs.post);
 
-		window.set_mouse_relative(true);
-
 		let scene_list = File::options()
 			.append(true)
 			.create(true)
 			.open("scenes.txt")
 			.ok();
+
+		let menu_texture = {
+			let params = win::TextureParams {
+				min_filter: win::TextureFilter::Linear,
+				..Default::default()
+			};
+			let mut tex = window.create_texture(&params);
+			let png_data = include_bytes!("menu.png");
+			let decoder = png::Decoder::new(&png_data[..]);
+			if let Ok(mut reader) = decoder.read_info() {
+				let mut data = vec![0; reader.output_buffer_size()];
+				if let Ok(info) = reader.next_frame(&mut data) {
+					let width = info.width;
+					let height = info.height;
+					let bytes = &data[..info.buffer_size()];
+					let colors = win::ColorGrayscaleU8::slice_from_bytes(bytes);
+					if tex
+						.set_data(Some(colors), width as usize, height as usize)
+						.is_err()
+					{
+						// don't care
+					}
+				}
+			}
+			tex
+		};
 
 		let mut me = Self {
 			window,
@@ -326,8 +352,10 @@ impl State {
 			main_framebuffer_texture,
 			main_framebuffer,
 			main_framebuffer_size: (0, 0),
+			menu_texture,
 			main_array,
 			test_array,
+			esc_menu: false,
 			post_array,
 			scene_list,
 			settings,
@@ -472,11 +500,20 @@ impl State {
 		let frame_dt = self.frame_time.elapsed().as_secs_f32();
 		self.frame_time = Instant::now();
 
+		self.window.set_mouse_relative(!self.esc_menu);
+
 		while let Some(event) = self.window.next_event() {
 			use win::Event::*;
 			use win::Key::*;
 			match event {
-				Quit | KeyDown { key: Escape, .. } => return false,
+				Quit => return false,
+				KeyDown { key: Escape, .. } => {
+					if self.esc_menu {
+						return false;
+					} else {
+						self.esc_menu = true;
+					}
+				}
 				KeyDown { key: F1, .. } => self.show_debug_info = !self.show_debug_info,
 				KeyDown { key: R, .. } => {
 					let new_scene = sdf::Scene::good_random(&mut get_rng(), &self.config);
@@ -546,20 +583,24 @@ impl State {
 					}
 				}
 				MouseMotion { xrel, yrel, .. } => {
-					let mouse_sensitivity =
-						0.001 * self.settings.get_f32("mouse-sensitivity").unwrap_or(50.0);
-					self.view
-						.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
-					self.view
-						.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
+					if !self.esc_menu {
+						let mouse_sensitivity =
+							0.001 * self.settings.get_f32("mouse-sensitivity").unwrap_or(50.0);
+						self.view
+							.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
+						self.view
+							.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
+					}
 				}
 				_ => {}
 			}
 		}
 
-		self.view.pass_time(frame_dt.into());
+		if !self.esc_menu {
+			self.view.pass_time(frame_dt.into());
+		}
 
-		{
+		if !self.esc_menu {
 			// movement
 			let mut dx = 0.0;
 			let mut dy = 0.0;
@@ -624,6 +665,7 @@ impl State {
 
 		let render_resolution = self.render_resolution();
 		if render_resolution != self.main_framebuffer_size {
+			// window resized. create new framebuffer
 			let result = self.main_framebuffer_texture.set_data::<ColorU8>(
 				None,
 				render_resolution.0 as usize,
@@ -695,7 +737,10 @@ impl State {
 		window.viewport_full_screen();
 		window.use_program(&self.programs.post);
 		window.active_texture(0, &self.main_framebuffer_texture);
-		window.uniform_texture("u_texture", 0);
+		window.active_texture(1, &self.menu_texture);
+		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
+		window.uniform_texture("u_main_texture", 0);
+		window.uniform_texture("u_menu_texture", 1);
 		self.post_array.draw();
 
 		window.swap();
