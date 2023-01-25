@@ -8,7 +8,7 @@ IN vec2 uv;
 
 void main() {
 	// amount to darken screen by when paused
-	float pause_darkening = 0.75;
+	float pause_darkening = 0.5;
 	vec4 color = texture(u_main_texture, uv) * (1.0 - pause_darkening * u_paused);
 	vec2 menu_uv = (uv * 2.0 - 1.0) * vec2(1.0, -1.0);
 	menu_uv *= 1.0 / u_menu_scale;

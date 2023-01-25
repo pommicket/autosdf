@@ -1,6 +1,6 @@
 /*
 @TODO:
-- reload settings.txt when changed
+- redraw SDF even when paused if settings or window resolution is changed
 - flash error on bad string (see @TODO(error handling))
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
@@ -29,9 +29,9 @@ use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 use sdf::ImportExport;
 use std::{
 	collections::HashMap,
-	fs::File,
+	fs::{self, File},
 	io::{prelude::*, BufReader, BufWriter},
-	time::Instant,
+	time::{Instant, SystemTime}
 };
 use win::{ColorF32, ColorGrayscaleF32, ColorU8};
 
@@ -190,13 +190,34 @@ const TEST_WIDTH: u16 = 100;
 #[derive(Default)]
 struct Settings {
 	data: HashMap<String, f64>,
+	filename: String,
+	file_last_modified: Option<SystemTime>,
 }
 
 impl Settings {
-	fn load(filename: &str) -> Result<Self, String> {
-		let file = File::open(filename).map_err(|e| format!("{e}"))?;
+	fn get_modified_time(&self) -> Option<SystemTime> {
+		fs::metadata(&self.filename).ok()
+			.map(|m| m.modified().ok())
+			.flatten()
+	}
+	
+	pub fn load(filename: &str) -> Result<Self, String> {
+		let mut settings = Self {
+			filename: filename.to_string(),
+			file_last_modified: None,
+			data: HashMap::new(),
+		};
+		settings.reload()?;
+		Ok(settings)
+	}
+	
+	/// Reload settings from file. On failure, the settings are left unchanged.
+	fn reload(&mut self) -> Result<(), String> {
+		self.file_last_modified = self.get_modified_time();
+		
+		let mut new_data = HashMap::new();
+		let file = File::open(&self.filename).map_err(|e| format!("{e}"))?;
 		let reader = BufReader::new(file);
-		let mut data = HashMap::new();
 		for line in reader.lines() {
 			let full_line = line.map_err(|e| format!("{e}"))?;
 			let line = full_line.trim();
@@ -210,10 +231,27 @@ impl Settings {
 				let key = parts[0].trim();
 				let value = parts[1].trim();
 				let value: f64 = value.parse().map_err(|_| format!("bad number: {value}"))?;
-				data.insert(key.to_string(), value);
+				new_data.insert(key.to_string(), value);
 			}
 		}
-		Ok(Self { data })
+		
+		self.data = new_data;
+		Ok(())
+	}
+	
+	/// reload settings if the settings file was changed.
+	/// returns true if the settings were changed.
+	pub fn reload_if_modified(&mut self) -> bool {
+		if self.get_modified_time() != self.file_last_modified {
+			if self.reload().is_err() {
+				// we'll just keep the old settings.
+				false
+			} else {
+				true
+			}
+		} else {
+			false
+		}
 	}
 
 	fn get_f64(&self, key: &str) -> Option<f64> {
@@ -601,6 +639,8 @@ impl State {
 
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
+		self.settings.reload_if_modified();
+		
 		if let Some(max_framerate) = self.settings.get_f32("max-framerate") {
 			if max_framerate > 0.0 {
 				let dt = self.frame_time.elapsed().as_secs_f32();
