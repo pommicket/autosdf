@@ -67,7 +67,7 @@ fn encode_hex(data: &[u8]) -> String {
 /// decode `data` from hexadecimal.
 /// returns None if this isn't a valid hexadecimal string.
 fn decode_hex(data: &str) -> Option<Vec<u8>> {
-	let data = data.trim();
+	let data = data.replace(char::is_whitespace, "");
 	if data.len() % 2 != 0 {
 		return None;
 	}

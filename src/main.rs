@@ -1,7 +1,6 @@
 /*
 @TODO:
 - reload settings.txt when changed
-- strip ' ' and '\n' from *inside* string
 - flash error on bad string (see @TODO(error handling))
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
