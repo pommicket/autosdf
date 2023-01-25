@@ -167,6 +167,9 @@ pub const SDL_BUTTON_RMASK: u32 = sdl_button_mask(SDL_BUTTON_RIGHT);
 pub const SDL_BUTTON_X1MASK: u32 = sdl_button_mask(SDL_BUTTON_X1);
 pub const SDL_BUTTON_X2MASK: u32 = sdl_button_mask(SDL_BUTTON_X2);
 
+pub const SDL_RELEASED: u8 = 0;
+pub const SDL_PRESSED: u8 = 1;
+
 pub const SDL_GL_RED_SIZE: SDL_GLattr = 0;
 pub const SDL_GL_GREEN_SIZE: SDL_GLattr = 1;
 pub const SDL_GL_BLUE_SIZE: SDL_GLattr = 2;
@@ -821,6 +824,7 @@ extern "C" {
 	fn SDL_GL_SwapWindow(window: *mut SDL_Window);
 	fn SDL_GL_GetProcAddress(proc: *const c_char) -> *mut c_void;
 	fn SDL_PollEvent(event: *mut SDL_Event) -> c_int;
+	fn SDL_GetMouseState(x: *mut c_int, y: *mut c_int) -> u32;
 	fn SDL_GetKeyboardState(numkeys: *mut c_int) -> *const u8;
 	fn SDL_GetKeyFromScancode(scancode: SDL_Scancode) -> SDL_Keycode;
 	// NOTE: do NOT add SDL_GetScancodeFromKey !!! see get_scancodes_from_key for explanation.
@@ -1612,4 +1616,11 @@ pub unsafe fn get_scancodes_from_key(keycode: SDL_Keycode) -> impl Iterator<Item
 	// the current implementation of SDL_GetKeyFromScancode is just an array lookup so this loop
 	// should perform well.
 	(0..scancode::NUM_SCANCODES).filter(move |&scn| SDL_GetKeyFromScancode(scn) == keycode)
+}
+
+pub unsafe fn get_mouse_state() -> (i32, i32, u32) {
+	let mut x = 0;
+	let mut y = 0;
+	let state = SDL_GetMouseState((&mut x) as *mut c_int, (&mut y) as *mut c_int);
+	(x as _, y as _, state)
 }

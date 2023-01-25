@@ -434,6 +434,28 @@ impl KeyModifier {
 	}
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton {
+	Left,
+	Middle,
+	Right,
+	X1,
+	X2,
+}
+
+impl MouseButton {
+	fn from_sdl(x: u8) -> Option<Self> {
+		Some(match x {
+			sdl::SDL_BUTTON_LEFT => MouseButton::Left,
+			sdl::SDL_BUTTON_MIDDLE => MouseButton::Middle,
+			sdl::SDL_BUTTON_RIGHT => MouseButton::Right,
+			sdl::SDL_BUTTON_X1 => MouseButton::X1,
+			sdl::SDL_BUTTON_X2 => MouseButton::X2,
+			_ => return None,
+		})
+	}
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
 	Quit,
@@ -451,6 +473,20 @@ pub enum Event {
 		xrel: i32,
 		yrel: i32,
 	},
+	MouseButtonDown {
+		button: MouseButton,
+		x: i32,
+		y: i32,
+		/// 1 for single-click, 2 for double-click, etc.
+		clicks: u8
+	},
+	MouseButtonUp {
+		button: MouseButton,
+		x: i32,
+		y: i32,
+		/// 1 for single-click, 2 for double-click, etc.
+		clicks: u8
+	}
 }
 
 pub fn display_error_message(message: &str) {
@@ -1493,6 +1529,29 @@ impl Window {
 						yrel: motion.yrel,
 					});
 				}
+				sdl::SDL_MOUSEBUTTONDOWN | sdl::SDL_MOUSEBUTTONUP => {
+					let b = unsafe { sdl.button };
+					if let Some(button) = MouseButton::from_sdl(b.button) {
+						let x = b.x;
+						let y = b.y;
+						let clicks = b.clicks;
+						if b.state == sdl::SDL_PRESSED {
+							return Some(Event::MouseButtonDown {
+								x,
+								y,
+								clicks,
+								button,
+							});
+						} else if b.state == sdl::SDL_RELEASED {
+							return Some(Event::MouseButtonUp {
+								x,
+								y,
+								clicks,
+								button,
+							});
+						}
+					}
+				}
 				_ => {}
 			}
 		}
@@ -1677,6 +1736,11 @@ impl Window {
 
 	pub fn uniform_texture(&mut self, name: &str, slot: u32) {
 		self.uniform1i(name, slot as i32);
+	}
+
+	pub fn get_mouse_pos(&self) -> (i32, i32) {
+		let state = unsafe { sdl::get_mouse_state() };
+		(state.0, state.1)
 	}
 
 	pub fn is_key_down(&self, key: Key) -> bool {

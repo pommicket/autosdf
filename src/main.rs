@@ -1,6 +1,5 @@
 /*
 @TODO:
-- pause screen
 - reload settings.txt when changed
 - strip ' ' and '\n' from *inside* string
 - flash error on bad string (see @TODO(error handling))
@@ -42,7 +41,17 @@ type Mat3 = Matrix3<f32>;
 type Mat4 = Matrix4<f32>;
 type Rot3 = Rotation3<f32>;
 
-const MENU_SCALE: f32 = 0.5;
+const MENU_SCALE: f32 = 0.6;
+#[derive(Clone, Copy)]
+enum MenuButton {
+	Resume,
+	Quit
+}
+/// array of buttons in menu.png. (y, height, button)
+const MENU_BUTTONS: &[(f32, f32, MenuButton)] = &[
+	(375.0, 135.0, MenuButton::Resume),
+	(605.0, 165.0, MenuButton::Quit),
+];
 
 #[repr(i32)]
 #[derive(Clone, Copy)]
@@ -233,6 +242,7 @@ struct State {
 	show_debug_info: bool,
 	fullscreen: bool,
 	esc_menu: bool,
+	quit: bool,
 	frame_time: Instant,
 	programs: Programs,
 	config: sdf::SceneConfig,
@@ -360,6 +370,7 @@ impl State {
 			main_array,
 			test_array,
 			esc_menu: false,
+			quit: false,
 			post_array,
 			scene_list,
 			settings,
@@ -436,7 +447,7 @@ impl State {
 		self.flash_icon = icon;
 	}
 
-	fn render_resolution(&self) -> (i32, i32) {
+	fn get_render_resolution(&self) -> (i32, i32) {
 		let scale = self.settings.get_f32("scale").unwrap_or(1.0);
 		if scale <= 0.0 || scale > 100.0 {
 			win::display_error_message(&format!("bad scale: {scale}"));
@@ -448,6 +459,79 @@ impl State {
 		assert!(w >= 0);
 		assert!(h >= 0);
 		(w, h)
+	}
+
+	/// render the SDF to the main framebuffer
+	fn render_main(&mut self) {
+		let render_resolution = self.get_render_resolution();
+		let window = &mut self.window;
+		let view = &self.view;
+		window.viewport(0, 0, render_resolution.0, render_resolution.1);
+
+		window.clear_screen(win::ColorF32::BLACK);
+		window.use_program(&self.programs.main);
+		window.bind_framebuffer(Some(&self.main_framebuffer));
+		window.uniform1f(
+			"u_aspect_ratio",
+			render_resolution.0 as f32 / render_resolution.1 as f32,
+		);
+		{
+			let (w, h) = window.size();
+			window.uniform2f("u_screen_size", w as f32, h as f32);
+		}
+		window.uniform1f("u_time", view.time as f32);
+		window.uniform1f(
+			"u_fov",
+			self.settings.get_f32("fov").unwrap_or(45.0).to_radians(),
+		);
+		window.uniform1f(
+			"u_focal_length",
+			self.settings.get_f32("focal-length").unwrap_or(1.0),
+		);
+		window.uniform1f("u_level_set", view.level_set);
+		window.uniform1i("u_hsv", self.settings.get_i32("hsv").unwrap_or(0));
+		let antialiasing = self.settings.get_i32("antialiasing").unwrap_or(1);
+		window.uniform2i("u_antialiasing", antialiasing, antialiasing);
+		window.uniform1i(
+			"u_iterations",
+			self.settings.get_i32("max-iterations").unwrap_or(30),
+		);
+		window.uniform1f(
+			"u_distance_threshold",
+			self.settings.get_f32("distance-threshold").unwrap_or(0.02),
+		);
+		window.uniform3x3f("u_rotation", view.rotation().as_slice());
+		window.uniform3f_slice("u_translation", view.pos.as_slice());
+		window.uniform4f_color("u_flash", self.flash);
+		window.uniform1i("u_flash_icon", self.flash_icon as i32);
+
+		self.main_array.draw();
+	}
+	
+	/// draw the main framebuffer to the screen, apply postprocessing
+	fn render_post(&mut self) {
+		let highlight_button = self.menu_button_at_pos(self.window.get_mouse_pos());
+		let render_resolution = self.get_render_resolution();
+		let window = &mut self.window;
+		window.bind_framebuffer(None);
+		window.viewport_full_screen();
+		window.use_program(&self.programs.post);
+		window.active_texture(0, &self.main_framebuffer_texture);
+		window.active_texture(1, &self.menu_texture);
+		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
+		window.uniform_texture("u_main_texture", 0);
+		window.uniform_texture("u_menu_texture", 1);
+		window.uniform1f(
+			"u_aspect_ratio",
+			render_resolution.0 as f32 / render_resolution.1 as f32,
+		);
+		window.uniform1f("u_menu_scale", MENU_SCALE);
+		if let Some((_, y1, y2)) = highlight_button {
+			window.uniform2f("u_highlight_button", y1, y2);
+		} else {
+			window.uniform2f("u_highlight_button", 0.0, 0.0);
+		}
+		self.post_array.draw();
 	}
 
 	/// save a screenshot
@@ -489,6 +573,32 @@ impl State {
 		self.flash(Icon::Screenshot);
 		Ok(())
 	}
+	
+	/// returns Some(button, v1, v2) which is a bit weird but oh well
+	fn menu_button_at_pos(&self, screen_pos: (i32, i32)) -> Option<(MenuButton, f32, f32)> {
+		let window_height = self.window.size().1 as f32;
+		let texture_height = self.menu_texture.height() as f32;
+		let y = screen_pos.1 as f32 / window_height as f32;
+		for &(y1, h, button) in MENU_BUTTONS {
+			let y1 = y1 / texture_height;
+			let h = h / texture_height;
+			let y2 = y1 + h;
+			let y1 = (y1 - 0.5) * MENU_SCALE + 0.5;
+			let y2 = (y2 - 0.5) * MENU_SCALE + 0.5;
+			if y >= y1 && y <= y2 {
+				return Some((button, 1.0 - y2, 1.0 - y1));
+			}
+		}
+		None
+	}
+	
+	fn press_menu_button(&mut self, button: MenuButton) {
+		use MenuButton::*;
+		match button {
+			Resume => self.esc_menu = false,
+			Quit => self.quit = true,
+		}
+	}
 
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
@@ -509,6 +619,7 @@ impl State {
 		while let Some(event) = self.window.next_event() {
 			use win::Event::*;
 			use win::Key::*;
+			use win::MouseButton;
 			match event {
 				Quit => return false,
 				KeyDown {
@@ -595,6 +706,13 @@ impl State {
 							.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
 					}
 				}
+				MouseButtonDown { button: MouseButton::Left, x, y, .. } => {
+					if self.esc_menu {
+						if let Some((menu_button, _, _)) = self.menu_button_at_pos((x, y)) {
+							self.press_menu_button(menu_button);
+						}
+					}
+				}
 				_ => {}
 			}
 		}
@@ -666,7 +784,7 @@ impl State {
 			self.view.level_set += dl * level_set_amount;
 		}
 
-		let render_resolution = self.render_resolution();
+		let render_resolution = self.get_render_resolution();
 		if render_resolution != self.main_framebuffer_size {
 			// window resized. create new framebuffer
 			let result = self.main_framebuffer_texture.set_data::<ColorU8>(
@@ -687,77 +805,28 @@ impl State {
 			self.main_framebuffer_size = render_resolution;
 		}
 
-		let window = &mut self.window;
-		let view = &self.view;
-		window.viewport(0, 0, render_resolution.0, render_resolution.1);
-
-		window.clear_screen(win::ColorF32::BLACK);
-		window.use_program(&self.programs.main);
-		window.bind_framebuffer(Some(&self.main_framebuffer));
-		window.uniform1f(
-			"u_aspect_ratio",
-			render_resolution.0 as f32 / render_resolution.1 as f32,
-		);
-		{
-			let (w, h) = window.size();
-			window.uniform2f("u_screen_size", w as f32, h as f32);
+		// if the escape menu is open, stop rendering the SDF.
+		// the framebuffer contents will stay the same.
+		// this lowers GPU usage (and increases framerate).
+		if !self.esc_menu {
+			self.render_main();
 		}
-		window.uniform1f("u_time", view.time as f32);
-		window.uniform1f(
-			"u_fov",
-			self.settings.get_f32("fov").unwrap_or(45.0).to_radians(),
-		);
-		window.uniform1f(
-			"u_focal_length",
-			self.settings.get_f32("focal-length").unwrap_or(1.0),
-		);
-		window.uniform1f("u_level_set", view.level_set);
-		window.uniform1i("u_hsv", self.settings.get_i32("hsv").unwrap_or(0));
-		let antialiasing = self.settings.get_i32("antialiasing").unwrap_or(1);
-		window.uniform2i("u_antialiasing", antialiasing, antialiasing);
-		window.uniform1i(
-			"u_iterations",
-			self.settings.get_i32("max-iterations").unwrap_or(30),
-		);
-		window.uniform1f(
-			"u_distance_threshold",
-			self.settings.get_f32("distance-threshold").unwrap_or(0.02),
-		);
-		window.uniform3x3f("u_rotation", view.rotation().as_slice());
-		window.uniform3f_slice("u_translation", view.pos.as_slice());
-		window.uniform4f_color("u_flash", self.flash);
-		window.uniform1i("u_flash_icon", self.flash_icon as i32);
-
+		
 		self.flash.a = f32::max(self.flash.a - frame_dt * (2.0 - 1.0 * self.flash.a), 0.0);
 		if self.flash.a <= 0.0 {
 			// icon is no longer visible
 			self.flash_icon = Icon::None;
 		}
 
-		self.main_array.draw();
+		self.render_post();
 
-		window.bind_framebuffer(None);
-		window.viewport_full_screen();
-		window.use_program(&self.programs.post);
-		window.active_texture(0, &self.main_framebuffer_texture);
-		window.active_texture(1, &self.menu_texture);
-		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
-		window.uniform_texture("u_main_texture", 0);
-		window.uniform_texture("u_menu_texture", 1);
-		window.uniform1f(
-			"u_aspect_ratio",
-			render_resolution.0 as f32 / render_resolution.1 as f32,
-		);
-		window.uniform1f("u_menu_scale", MENU_SCALE);
-		self.post_array.draw();
-
-		window.swap();
+		self.window.swap();
 
 		if self.show_debug_info {
 			println!("frame time = {:?}ms", frame_dt * 1000.0);
 		}
 
-		true
+		!self.quit
 	}
 }
 
