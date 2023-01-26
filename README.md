@@ -53,3 +53,6 @@ a263736466a169536d6f6f74684d696e82a169536d6f6f74684d696e82a167436f6d706f736583a1
 
 ## building from source
 [Install rust](https://www.rust-lang.org/tools/install) and run `cargo run --release` from this directory.
+On Windows you will need SDL2.lib and SDL2.dll
+in the autosdf directory. They are available [here](https://github.com/libsdl-org/SDL/releases/tag/release-2.26.2)
+(extract SDL2-...-VC.zip and go to SDL2-.../lib/x64).
