@@ -261,6 +261,12 @@ pub enum R3ToR {
 	#[prob(2)]
 	#[only_if(params.max_depth >= 0)]
 	Min(Box<R3ToR>, Box<R3ToR>),
+	#[prob(0.1)]
+	ProjectX,
+	#[prob(0.1)]
+	ProjectY,
+	#[prob(0.1)]
+	ProjectZ,
 }
 
 impl R3ToR3 {
@@ -684,6 +690,21 @@ impl Function for R3ToR {
 				let pre_output = pre.to_glsl(input, code, var);
 				let f_output = f.to_glsl(pre_output, code, var);
 				post.to_glsl(f_output, code, var)
+			}
+			ProjectX => {
+				let output = var.next();
+				write_str!(code, "float {output} = {input}.x;\n");
+				output
+			}
+			ProjectY => {
+				let output = var.next();
+				write_str!(code, "float {output} = {input}.y;\n");
+				output
+			}
+			ProjectZ => {
+				let output = var.next();
+				write_str!(code, "float {output} = {input}.z;\n");
+				output
 			}
 		}
 	}

@@ -1,9 +1,7 @@
 /*
 @TODO:
-- let user go back&forth through past sdfs using scenes.txt file
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
-- ProjectX, ProjectY, ProjectZ in R3ToR?
 - documentation
 - GenRandom integers (just use 0..u32::MAX and add a modulus)
 - blender-style rendering the picture in multiple frames
