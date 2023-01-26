@@ -198,6 +198,9 @@ pub enum R3ToR3 {
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
+	PerComponent(Box<RToR>, Box<RToR>, Box<RToR>),
+	#[prob(4)]
+	#[only_if(params.max_depth >= 0)]
 	Mix(Box<R3ToR3>, Box<R3ToR3>, Constant),
 	#[prob(0.5)]
 	Translate(Constant3),
@@ -238,6 +241,8 @@ pub enum RToR {
 	Compose(Box<RToR>, Box<RToR>),
 	#[prob(0)]
 	Subtract(Constant),
+	#[prob(2)]
+	NToN(Box<RnToRn>)
 }
 
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
@@ -547,6 +552,9 @@ impl Function for RToR {
 				let a_output = a.to_glsl(input, code, var);
 				b.to_glsl(a_output, code, var)
 			}
+			NToN(f) => {
+				f.to_glsl(input, code, var, 1)
+			}
 		}
 	}
 }
@@ -568,6 +576,22 @@ impl Function for R3ToR3 {
 			Compose(a, b) => {
 				let a_output = a.to_glsl(input, code, var);
 				b.to_glsl(a_output, code, var)
+			}
+			PerComponent(fx, fy, fz) => {
+				let x_input = var.next();
+				let y_input = var.next();
+				let z_input = var.next();
+				let output = var.next();
+				write_str!(code,
+					"float {x_input} = {input}.x;\n
+					float {y_input} = {input}.y;\n
+					float {z_input} = {input}.z;\n");
+				let x_output = fx.to_glsl(x_input, code, var);
+				let y_output = fy.to_glsl(y_input, code, var);
+				let z_output = fz.to_glsl(z_input, code, var);
+				write_str!(code,
+					"vec3 {output} = vec3({x_output}, {y_output}, {z_output});\n");
+				output
 			}
 			Mix(a, b, t) => {
 				let a_output = a.to_glsl(input, code, var);
