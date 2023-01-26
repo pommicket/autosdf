@@ -12,7 +12,7 @@ sdf-length 600
 color-length 300
 #    max raymarching iterations
 #    making this bigger will make boundaries less "blurry", but will require more gpu computation
-max-iterations 30
+max-iterations 50
 #    raymarching distance threshold
 #    (how close to distance 0 should the SDF get before we draw?)
 distance-threshold 0.02

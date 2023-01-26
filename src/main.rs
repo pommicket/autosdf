@@ -1,6 +1,5 @@
 /*
 @TODO:
-- redraw SDF even when paused if settings or window resolution is changed
 - flash error on bad string (see @TODO(error handling))
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
@@ -104,9 +103,16 @@ impl View {
 	fn unpause(&mut self, rewind: bool) {
 		self.time_speed = if rewind { -1.0 } else { 1.0 };
 	}
-
-	fn pass_time(&mut self, dt: f64) {
-		self.time += self.time_speed * dt;
+	
+	/// returns true if the current time is modified
+	fn pass_time(&mut self, dt: f64) -> bool {
+		let dt = self.time_speed * dt;
+		if dt == 0.0 {
+			false
+		} else {
+			self.time += dt;
+			true
+		}
 	}
 
 	fn yaw_by(&mut self, yaw: f32) {
@@ -280,6 +286,9 @@ struct State {
 	fullscreen: bool,
 	esc_menu: bool,
 	quit: bool,
+	/// set to true when the view/window size/settings/etc. is changed,
+	/// and we need to redraw the SDF
+	needs_redraw: bool,
 	frame_time: Instant,
 	programs: Programs,
 	config: sdf::SceneConfig,
@@ -408,6 +417,7 @@ impl State {
 			test_array,
 			esc_menu: false,
 			quit: false,
+			needs_redraw: true,
 			post_array,
 			scene_list,
 			settings,
@@ -470,9 +480,10 @@ impl State {
 				self.view = initial_view;
 			}
 			Err(e) => {
-				eprintln!("Error: {e}")
+				eprintln!("Error: {e}");
 			}
-		};
+		}
+		self.needs_redraw = true;
 	}
 
 	fn flash(&mut self, icon: Icon) {
@@ -539,8 +550,6 @@ impl State {
 		);
 		window.uniform3x3f("u_rotation", view.rotation().as_slice());
 		window.uniform3f_slice("u_translation", view.pos.as_slice());
-		window.uniform4f_color("u_flash", self.flash);
-		window.uniform1i("u_flash_icon", self.flash_icon as i32);
 
 		self.main_array.draw();
 	}
@@ -555,9 +564,11 @@ impl State {
 		window.use_program(&self.programs.post);
 		window.active_texture(0, &self.main_framebuffer_texture);
 		window.active_texture(1, &self.menu_texture);
-		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
 		window.uniform_texture("u_main_texture", 0);
 		window.uniform_texture("u_menu_texture", 1);
+		window.uniform1f("u_paused", if self.esc_menu { 1.0 } else { 0.0 });
+		window.uniform4f_color("u_flash", self.flash);
+		window.uniform1i("u_flash_icon", self.flash_icon as i32);
 		window.uniform1f(
 			"u_aspect_ratio",
 			render_resolution.0 as f32 / render_resolution.1 as f32,
@@ -639,7 +650,9 @@ impl State {
 
 	// returns false if we should quit
 	fn frame(&mut self) -> bool {
-		self.settings.reload_if_modified();
+		if self.settings.reload_if_modified() {
+			self.needs_redraw = true;
+		}
 		
 		if let Some(max_framerate) = self.settings.get_f32("max-framerate") {
 			if max_framerate > 0.0 {
@@ -743,6 +756,7 @@ impl State {
 							.yaw_by(-xrel as f32 * mouse_sensitivity * frame_dt);
 						self.view
 							.pitch_by(-yrel as f32 * mouse_sensitivity * frame_dt);
+						self.needs_redraw = true;
 					}
 				}
 				MouseButtonDown { button: MouseButton::Left, x, y, .. } => {
@@ -757,7 +771,9 @@ impl State {
 		}
 
 		if !self.esc_menu {
-			self.view.pass_time(frame_dt.into());
+			if self.view.pass_time(frame_dt.into()) {
+				self.needs_redraw = true;
+			}
 		}
 
 		if !self.esc_menu {
@@ -809,6 +825,7 @@ impl State {
 				let dt = dt * speed_multiplier;
 				self.view.pause();
 				self.view.time += f64::from(dt);
+				self.needs_redraw = true;
 			}
 
 			let motion = Vec3::new(dx, dy, dz);
@@ -817,10 +834,14 @@ impl State {
 				let motion = motion * move_amount;
 				let motion = self.view.rotation() * motion;
 				self.view.pos += motion;
+				self.needs_redraw = true;
 			}
-
-			let level_set_amount = 1.0 * speed_multiplier;
-			self.view.level_set += dl * level_set_amount;
+			
+			if dl != 0.0 {
+				let level_set_amount = 1.0 * speed_multiplier;
+				self.view.level_set += dl * level_set_amount;
+				self.needs_redraw = true;
+			}
 		}
 
 		let render_resolution = self.get_render_resolution();
@@ -842,13 +863,15 @@ impl State {
 				&self.main_framebuffer_texture,
 			);
 			self.main_framebuffer_size = render_resolution;
+			self.needs_redraw = true;
 		}
-
-		// if the escape menu is open, stop rendering the SDF.
-		// the framebuffer contents will stay the same.
-		// this lowers GPU usage (and increases framerate).
-		if !self.esc_menu {
+		
+		// this needs_redraw check stops the SDF from being rendered when
+		// the escape menu is open for example (unless window dimensions/settings are changed)
+		// this reduces GPU usage and gives a higher framerate
+		if self.needs_redraw {
 			self.render_main();
+			self.needs_redraw = false;
 		}
 		
 		self.flash.a = f32::max(self.flash.a - frame_dt * (2.0 - 1.0 * self.flash.a), 0.0);
