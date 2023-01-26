@@ -4,7 +4,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::{Cell, RefCell};
 
+/// parameters passed to [GenRandom] implementation
 pub trait GenRandomParams: Sized + Default + Copy {
+	/// If `params` is used to generate `object`, then `params.inc_depth()` will
+	/// be used to generate `object`'s members.
 	fn inc_depth(self) -> Self;
 }
 
@@ -13,6 +16,7 @@ impl GenRandomParams for () {
 		()
 	}
 }
+
 
 impl GenRandomParams for i64 {
 	fn inc_depth(self) -> Self {
@@ -73,10 +77,12 @@ pub trait GenRandom<Params: GenRandomParams>: Sized {
 	}
 }
 
+/// generate a [Vec] of `len` random items.
 pub fn gen_random_vec<P: GenRandomParams, T: GenRandom<P>>(rng: &mut impl Rng, len: usize) -> Vec<T> {
 	(0..len).map(|_| T::gen_random(rng)).collect()
 }
 
+/// generate a [Vec] of `len` random items using `rand::thread_rng()`.
 pub fn gen_thread_random_vec<P: GenRandomParams, T: GenRandom<P>>(len: usize) -> Vec<T> {
 	gen_random_vec(&mut rand::thread_rng(), len)
 }

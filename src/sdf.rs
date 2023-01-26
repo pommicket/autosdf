@@ -10,13 +10,17 @@ use serde::{Deserialize, Serialize};
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter, Write};
 
-// we're only writing numbers and strings so write! should never fail.
+/// macro used to write to strings.
+///
+/// we're only writing numbers and strings so write! should never fail.
 macro_rules! write_str {
 	($( $arg:tt )*) => { write!($($arg)*).unwrap() }
 }
 
+/// parameters used to generate SDF
 #[derive(Copy, Clone)]
 pub struct SdfParams {
+	/// maximum expression depth
 	max_depth: i32,
 }
 
@@ -34,12 +38,14 @@ impl GenRandomParams for SdfParams {
 	}
 }
 
-/// these are constant across 3D space, not across time/user input/etc.
+/// constants across 3D space (but not across time/user input/etc.)
 #[derive(Debug, GenRandom, Serialize, Deserialize, Clone, Copy)]
 #[params(SdfParams)]
 pub enum Constant {
+	/// a number
 	#[prob(0.0)]
 	F32(f32),
+	/// `Time(a, b) = a * time + b`, where `time` is in seconds
 	#[prob(0.5)]
 	Time(
 		#[scale(0.2)]
@@ -49,9 +55,15 @@ pub enum Constant {
 	),
 }
 
+/// a trait for string serialization
+///
+/// this is automatically implemented for anything with [Serialize] + [Deserialize].
 pub trait ImportExport: Sized {
+	/// export self as a string
 	fn export_string(&self) -> String;
-	/// returns None if `s` is not a valid string
+	/// import a string
+	///
+	/// returns None if `s` is not a valid serialized string
 	fn import_string(s: &str) -> Option<Self>;
 }
 
@@ -65,6 +77,7 @@ fn encode_hex(data: &[u8]) -> String {
 }
 
 /// decode `data` from hexadecimal.
+///
 /// returns None if this isn't a valid hexadecimal string.
 fn decode_hex(data: &str) -> Option<Vec<u8>> {
 	let data = data.replace(char::is_whitespace, "");
@@ -134,6 +147,7 @@ impl Display for Constant {
 	}
 }
 
+/// a `vec3` of [Constant]s
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub struct Constant3(Constant, Constant, Constant);
@@ -165,93 +179,124 @@ impl Display for Constant3 {
 	}
 }
 
+/// a generic function from float/vec*n* to float/vec*n*
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum RnToRn {
+	/// 1/c sin(cx)
 	#[prob(4)]
 	#[bias(0.01)] // prevent division by 0
-	Sin(Constant), // 1/c sin(cx)
+	Sin(Constant),
+	/// based on modulus function
 	#[prob(4)]
 	#[bias(0.01)]
 	InfiniteMirrors(Constant),
+	/// arctan(c x) / c
 	#[prob(2)]
-	Arctan(Constant), // arctan(c x)  / c
+	Arctan(Constant),
+	/// based on 1/x² sin(x²)
 	#[prob(2)]
 	#[bias(0.01)]
-	SqSin(Constant), // based on 1/x² sin(x²)
+	SqSin(Constant),
+	/// based on sigmoid(x) = 1 / (1 + e^-x)
 	#[prob(2)]
 	#[bias(0.01)]
-	Sigmoid, //based on sigmoid(x) = 1 / (1 + e^-x)
+	Sigmoid,
 	#[prob(2)]
 	Wibbly,
+	/// based on sqrt(x)
 	#[prob(2)]
-	Sqrt(Constant),	
+	Sqrt(Constant),
 }
 
+/// a function from vec3 to vec3
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum R3ToR3 {
+	/// the identity function f(x) = x
 	#[prob(0)]
 	Identity,
+	/// a composition of two functions
 	#[prob(8)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
+	/// f(x, y, z) = (f₁(x), f₂(y), f₃(z))
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
 	PerComponent(Box<RToR>, Box<RToR>, Box<RToR>),
+	/// a linear interpolation between two functions
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
 	Mix(Box<R3ToR3>, Box<R3ToR3>, Constant),
+	/// translate by a constant amount  f(x) = x + p
 	#[prob(0.5)]
 	Translate(Constant3),
-	// this was removed at some point.
-	// it doesn't really seem to be helpful.
+	/// this was removed at some point.
+	/// it doesn't really seem to be helpful.
 	#[prob(0)]
 	Twisty(Constant),
+	/// a generic function applied to vec3
 	#[prob(12)]
 	NToN(Box<RnToRn>),
+	/// rotate by a constant amount
 	#[prob(0.5)]
 	#[scale(2 * std::f32::consts::PI)]
 	Rotate(Constant3),
-	
+
 	// ---- everything below has been moved to RnToRn and is only here for backwards compatibility ----
+	#[doc(hidden)]
 	#[prob(0)]
 	Sin(Constant), // 1/c sin(cx)
+	#[doc(hidden)]
 	#[prob(0)]
 	InfiniteMirrors(Constant),
+	#[doc(hidden)]
 	#[prob(0)]
 	Arctan(Constant),
+	#[doc(hidden)]
 	#[prob(0)]
 	SqSin(Constant),
+	#[doc(hidden)]
 	#[prob(0)]
 	Sigmoid,
+	#[doc(hidden)]
 	#[prob(0)]
 	Wibbly,
+	#[doc(hidden)]
 	#[prob(0)]
-	Sqrt(Constant),	
+	Sqrt(Constant),
 }
 
+/// a function from float to float
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum RToR {
+	/// the identity function f(x) = x
 	#[prob(1)]
 	Identity,
+	/// composition of two functions
 	#[prob(0)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<RToR>, Box<RToR>),
+	/// subtract a constant
 	#[prob(0)]
 	Subtract(Constant),
+	/// a generic function applied to float
 	#[prob(2)]
-	NToN(Box<RnToRn>)
+	NToN(Box<RnToRn>),
 }
 
+/// a function from vec3 to float
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum R3ToR {
+	/// SDF for a sphere
 	#[prob(0.1)]
 	Sphere(Constant),
+	/// SDF for a cube
 	#[prob(0.1)]
 	Cube(Constant),
+	/// SDF for a box frame
 	#[prob(0.1)]
 	BoxFrame {
 		#[scale(3.0)]
@@ -259,6 +304,7 @@ pub enum R3ToR {
 		#[scale(0.2)]
 		thickness: Constant,
 	},
+	/// SDF for a torus
 	#[prob(0.1)]
 	Torus {
 		#[scale(3.0)]
@@ -266,72 +312,92 @@ pub enum R3ToR {
 		#[scale(0.2)]
 		thickness: Constant,
 	},
+	/// SDF for a triangular prism
 	#[prob(0.1)]
 	TriPrism(Constant, Constant),
+	/// SDF for a vertical line segment
 	#[prob(0.1)]
 	VLineSegment(Constant),
+	/// SDF for a cylinder
 	#[prob(0.1)]
 	Cylinder(Constant, Constant),
+	/// apply a function from vec3 to vec3, then vec3 to float, then float to float
 	#[prob(8)]
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR>, Box<RToR>),
+	/// linear interpolation between two functions
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
 	Mix(Box<R3ToR>, Box<R3ToR>, Constant),
+	/// sin(f(x))·cos(g(x))
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
 	SinCos(Box<R3ToR>, Box<R3ToR>),
+	/// "smooth" minimum of two functions
 	#[prob(2)]
 	#[only_if(params.max_depth >= 0)]
 	SmoothMin(Box<R3ToR>, Box<R3ToR>),
+	/// minimum of two functions
 	#[prob(2)]
 	#[only_if(params.max_depth >= 0)]
 	Min(Box<R3ToR>, Box<R3ToR>),
+	/// f(x,y,z) = x
 	#[prob(0.1)]
 	ProjectX,
+	/// f(x,y,z) = y
 	#[prob(0.1)]
 	ProjectY,
+	/// f(x,y,z) = z
 	#[prob(0.1)]
 	ProjectZ,
 }
 
 impl R3ToR3 {
+	/// create composition of two functions
 	pub fn compose(self, b: Self) -> Self {
 		Self::Compose(Box::new(self), Box::new(b))
 	}
 }
 
 impl RToR {
+	/// create composition of two functions
 	pub fn compose(self, b: Self) -> Self {
 		Self::Compose(Box::new(self), Box::new(b))
 	}
 }
 
 impl R3ToR {
+	/// create sphere SDF
 	pub fn sphere_f32(r: f32) -> Self {
 		Self::Sphere(r.into())
 	}
 
+	/// create cube SDF
 	pub fn cube_f32(r: f32) -> Self {
 		Self::Cube(r.into())
 	}
 
+	/// create mix of two SDFs
 	pub fn mix(a: Self, b: Self, t: Constant) -> Self {
 		Self::Mix(Box::new(a), Box::new(b), t)
 	}
 
+	/// create mix of two SDFs
 	pub fn mix_f32(a: Self, b: Self, t: f32) -> Self {
 		Self::mix(a, b, t.into())
 	}
 
+	/// create minimum of two SDFs
 	pub fn min(a: Self, b: Self) -> Self {
 		Self::Min(Box::new(a), Box::new(b))
 	}
 
+	/// create "smooth" minimum of two SDFs
 	pub fn smooth_min(a: Self, b: Self) -> Self {
 		Self::SmoothMin(Box::new(a), Box::new(b))
 	}
 
+	/// create composition of three functions
 	pub fn compose(pre: R3ToR3, f: Self, post: RToR) -> Self {
 		Self::Compose(Box::new(pre), Box::new(f), Box::new(post))
 	}
@@ -355,6 +421,7 @@ impl Default for R3ToR {
 	}
 }
 
+/// a variable in a GLSL program
 #[derive(Clone, Copy)]
 struct Variable {
 	id: u32,
@@ -366,6 +433,7 @@ impl Display for Variable {
 	}
 }
 
+/// a counter used to create variables
 struct VarCounter {
 	idx: u32,
 }
@@ -375,6 +443,7 @@ impl VarCounter {
 		Self { idx: 0 }
 	}
 
+	/// get next variable
 	fn next(&mut self) -> Variable {
 		let ret = Variable { id: self.idx };
 		self.idx += 1;
@@ -398,6 +467,7 @@ impl fmt::Display for GLSLType {
 	}
 }
 
+/// a trait implemented by [R3ToR3], [R3ToR], etc.
 trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 	/// appends `code` with glsl code to apply the function to the input variable.
 	/// returns the output variable.
@@ -423,6 +493,7 @@ trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 		write_str!(code, "return {output};\n}}\n\n");
 	}
 
+	/// generates a random function with the given length
 	fn good_random(rng: &mut impl Rng, function_length: usize) -> Self {
 		let default_len = Self::default().export_string().len();
 		for max_depth in 1.. {
@@ -449,12 +520,10 @@ trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 			return selected.1;
 		}
 		// weird that rust thinks 1.. "might have zero elements to iterate on"
-		// but technically this can happen if max_depth reaches usize::MAX
-		// i'm not really worried about that though
-		// we'd have much bigger problems before then.
 		panic!("wtf")
 	}
 
+	/// generates a random function with the given length using the thread random number generator
 	fn good_thread_random(function_length: usize) -> Self {
 		Self::good_random(&mut rand::thread_rng(), function_length)
 	}
@@ -474,7 +543,10 @@ impl RnToRn {
 			Arctan(c) => {
 				let output = var.next();
 				// we need to scale arctan(cx) so it doesn't break the SDF
-				write_str!(code, "{type} {output} = (1.0 / {c}) * atan({c} * {input});\n");
+				write_str!(
+					code,
+					"{type} {output} = (1.0 / {c}) * atan({c} * {input});\n"
+				);
 				output
 			}
 			SqSin(c) => {
@@ -514,11 +586,13 @@ impl RnToRn {
 			}
 			Sin(c) => {
 				let output = var.next();
-				write_str!(code, "{type} {output} = sin({c} * {input}) * (1.0 / {c});\n");
+				write_str!(
+					code,
+					"{type} {output} = sin({c} * {input}) * (1.0 / {c});\n"
+				);
 				output
 			}
 			InfiniteMirrors(c) => {
-				// similar to Sin(c), but uses mod instead
 				let q = var.next();
 				let r = var.next();
 				let output = var.next();
@@ -552,9 +626,7 @@ impl Function for RToR {
 				let a_output = a.to_glsl(input, code, var);
 				b.to_glsl(a_output, code, var)
 			}
-			NToN(f) => {
-				f.to_glsl(input, code, var, 1)
-			}
+			NToN(f) => f.to_glsl(input, code, var, 1),
 		}
 	}
 }
@@ -582,15 +654,19 @@ impl Function for R3ToR3 {
 				let y_input = var.next();
 				let z_input = var.next();
 				let output = var.next();
-				write_str!(code,
+				write_str!(
+					code,
 					"float {x_input} = {input}.x;\n
 					float {y_input} = {input}.y;\n
-					float {z_input} = {input}.z;\n");
+					float {z_input} = {input}.z;\n"
+				);
 				let x_output = fx.to_glsl(x_input, code, var);
 				let y_output = fy.to_glsl(y_input, code, var);
 				let z_output = fz.to_glsl(z_input, code, var);
-				write_str!(code,
-					"vec3 {output} = vec3({x_output}, {y_output}, {z_output});\n");
+				write_str!(
+					code,
+					"vec3 {output} = vec3({x_output}, {y_output}, {z_output});\n"
+				);
 				output
 			}
 			Mix(a, b, t) => {
@@ -640,30 +716,14 @@ impl Function for R3ToR3 {
 				);
 				output
 			}
-			NToN(f) => {
-				f.to_glsl(input, code, var, 3)
-			}
-			Sin(c) => {
-				RnToRn::Sin(*c).to_glsl(input, code, var, 3)
-			}
-			InfiniteMirrors(c) => {
-				RnToRn::InfiniteMirrors(*c).to_glsl(input, code, var, 3)
-			}
-			SqSin(c) => {
-				RnToRn::SqSin(*c).to_glsl(input, code, var, 3)
-			}
-			Arctan(c) => {
-				RnToRn::Arctan(*c).to_glsl(input, code, var, 3)
-			}
-			Sigmoid => {
-				RnToRn::Sigmoid.to_glsl(input, code, var, 3)
-			}
-			Wibbly => {
-				RnToRn::Wibbly.to_glsl(input, code, var, 3)
-			}
-			Sqrt(c) => {
-				RnToRn::Sqrt(*c).to_glsl(input, code, var, 3)
-			}
+			NToN(f) => f.to_glsl(input, code, var, 3),
+			Sin(c) => RnToRn::Sin(*c).to_glsl(input, code, var, 3),
+			InfiniteMirrors(c) => RnToRn::InfiniteMirrors(*c).to_glsl(input, code, var, 3),
+			SqSin(c) => RnToRn::SqSin(*c).to_glsl(input, code, var, 3),
+			Arctan(c) => RnToRn::Arctan(*c).to_glsl(input, code, var, 3),
+			Sigmoid => RnToRn::Sigmoid.to_glsl(input, code, var, 3),
+			Wibbly => RnToRn::Wibbly.to_glsl(input, code, var, 3),
+			Sqrt(c) => RnToRn::Sqrt(*c).to_glsl(input, code, var, 3),
 		}
 	}
 }
@@ -819,11 +879,13 @@ impl R3ToR3 {
 	}
 }
 
+/// options for generating a [Scene]
 pub struct SceneConfig {
 	pub sdf_length: usize,
 	pub color_length: usize,
 }
 
+/// a "scene" (includes SDF and color function)
 #[derive(Serialize, Deserialize, Default)]
 pub struct Scene {
 	pub sdf: R3ToR,
@@ -831,6 +893,7 @@ pub struct Scene {
 }
 
 impl Scene {
+	/// generate a random scene
 	pub fn good_random(rng: &mut impl Rng, config: &SceneConfig) -> Self {
 		let sdf = R3ToR::good_random(rng, config.sdf_length);
 		let color_function = R3ToR3::good_random(rng, config.color_length);

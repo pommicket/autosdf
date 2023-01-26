@@ -1,3 +1,4 @@
+/// functions for opening windows and doing OpenGL stuff
 // all OpenGL calls are done through the Window.
 // this is because OpenGL is not thread safe.
 use crate::sdl;
@@ -478,15 +479,15 @@ pub enum Event {
 		x: i32,
 		y: i32,
 		/// 1 for single-click, 2 for double-click, etc.
-		clicks: u8
+		clicks: u8,
 	},
 	MouseButtonUp {
 		button: MouseButton,
 		x: i32,
 		y: i32,
 		/// 1 for single-click, 2 for double-click, etc.
-		clicks: u8
-	}
+		clicks: u8,
+	},
 }
 
 pub fn display_error_message(message: &str) {

@@ -1,6 +1,5 @@
 /*
 @TODO:
-- documentation
 - is it the function generation or the shader compililng that's slow for large functions?
 - record a cool video
 */
@@ -21,7 +20,7 @@ use std::{
 	collections::HashMap,
 	fs::{self, File},
 	io::{prelude::*, BufReader, BufWriter},
-	time::{Instant, SystemTime}
+	time::{Instant, SystemTime},
 };
 use win::{ColorF32, ColorGrayscaleF32, ColorU8};
 
@@ -30,11 +29,14 @@ type Mat3 = Matrix3<f32>;
 type Mat4 = Matrix4<f32>;
 type Rot3 = Rotation3<f32>;
 
+/// scale to draw menu at
 const MENU_SCALE: f32 = 0.6;
+
+/// button in escape menu
 #[derive(Clone, Copy)]
 enum MenuButton {
 	Resume,
-	Quit
+	Quit,
 }
 /// array of buttons in menu.png. (y, height, button)
 const MENU_BUTTONS: &[(f32, f32, MenuButton)] = &[
@@ -42,6 +44,7 @@ const MENU_BUTTONS: &[(f32, f32, MenuButton)] = &[
 	(605.0, 165.0, MenuButton::Quit),
 ];
 
+/// an icon which will be displayed on screen
 #[repr(i32)]
 #[derive(Clone, Copy)]
 enum Icon {
@@ -65,6 +68,7 @@ impl Icon {
 	}
 }
 
+/// current "view" of SDF (camera position, rotation, etc.)
 #[derive(Clone)]
 struct View {
 	pos: Vec3,
@@ -106,7 +110,7 @@ impl View {
 	fn unpause(&mut self, rewind: bool) {
 		self.time_speed = if rewind { -1.0 } else { 1.0 };
 	}
-	
+
 	/// returns true if the current time is modified
 	fn pass_time(&mut self, dt: f64) -> bool {
 		let dt = self.time_speed * dt;
@@ -205,11 +209,11 @@ struct Settings {
 
 impl Settings {
 	fn get_modified_time(&self) -> Option<SystemTime> {
-		fs::metadata(&self.filename).ok()
-			.map(|m| m.modified().ok())
-			.flatten()
+		fs::metadata(&self.filename)
+			.ok()
+			.and_then(|m| m.modified().ok())
 	}
-	
+
 	pub fn load(filename: &str) -> Result<Self, String> {
 		let mut settings = Self {
 			filename: filename.to_string(),
@@ -219,11 +223,11 @@ impl Settings {
 		settings.reload()?;
 		Ok(settings)
 	}
-	
+
 	/// Reload settings from file. On failure, the settings are left unchanged.
 	fn reload(&mut self) -> Result<(), String> {
 		self.file_last_modified = self.get_modified_time();
-		
+
 		let mut new_data = HashMap::new();
 		let file = File::open(&self.filename).map_err(|e| format!("{e}"))?;
 		let reader = BufReader::new(file);
@@ -243,21 +247,16 @@ impl Settings {
 				new_data.insert(key.to_string(), value);
 			}
 		}
-		
+
 		self.data = new_data;
 		Ok(())
 	}
-	
+
 	/// reload settings if the settings file was changed.
 	/// returns true if the settings were changed.
 	pub fn reload_if_modified(&mut self) -> bool {
 		if self.get_modified_time() != self.file_last_modified {
-			if self.reload().is_err() {
-				// we'll just keep the old settings.
-				false
-			} else {
-				true
-			}
+			self.reload().is_err()
 		} else {
 			false
 		}
@@ -552,7 +551,7 @@ impl State {
 
 		self.main_array.draw();
 	}
-	
+
 	/// draw the main framebuffer to the screen, apply postprocessing
 	fn render_post(&mut self) {
 		let highlight_button = self.menu_button_at_pos(self.window.get_mouse_pos());
@@ -620,7 +619,7 @@ impl State {
 		self.flash(Icon::Screenshot);
 		Ok(())
 	}
-	
+
 	/// returns Some(button, v1, v2) which is a bit weird but oh well
 	fn menu_button_at_pos(&self, screen_pos: (i32, i32)) -> Option<(MenuButton, f32, f32)> {
 		let window_height = self.window.size().1 as f32;
@@ -638,7 +637,7 @@ impl State {
 		}
 		None
 	}
-	
+
 	fn press_menu_button(&mut self, button: MenuButton) {
 		use MenuButton::*;
 		match button {
@@ -652,7 +651,7 @@ impl State {
 		if self.settings.reload_if_modified() {
 			self.needs_redraw = true;
 		}
-		
+
 		if let Some(max_framerate) = self.settings.get_f32("max-framerate") {
 			if max_framerate > 0.0 {
 				let dt = self.frame_time.elapsed().as_secs_f32();
@@ -758,7 +757,12 @@ impl State {
 						self.needs_redraw = true;
 					}
 				}
-				MouseButtonDown { button: MouseButton::Left, x, y, .. } => {
+				MouseButtonDown {
+					button: MouseButton::Left,
+					x,
+					y,
+					..
+				} => {
 					if self.esc_menu {
 						if let Some((menu_button, _, _)) = self.menu_button_at_pos((x, y)) {
 							self.press_menu_button(menu_button);
@@ -769,10 +773,8 @@ impl State {
 			}
 		}
 
-		if !self.esc_menu {
-			if self.view.pass_time(frame_dt.into()) {
-				self.needs_redraw = true;
-			}
+		if !self.esc_menu && self.view.pass_time(frame_dt.into()) {
+			self.needs_redraw = true;
 		}
 
 		if !self.esc_menu {
@@ -835,7 +837,7 @@ impl State {
 				self.view.pos += motion;
 				self.needs_redraw = true;
 			}
-			
+
 			if dl != 0.0 {
 				let level_set_amount = 1.0 * speed_multiplier;
 				self.view.level_set += dl * level_set_amount;
@@ -864,7 +866,7 @@ impl State {
 			self.main_framebuffer_size = render_resolution;
 			self.needs_redraw = true;
 		}
-		
+
 		// this needs_redraw check stops the SDF from being rendered when
 		// the escape menu is open for example (unless window dimensions/settings are changed)
 		// this reduces GPU usage and gives a higher framerate
@@ -872,7 +874,7 @@ impl State {
 			self.render_main();
 			self.needs_redraw = false;
 		}
-		
+
 		self.flash.a = f32::max(self.flash.a - frame_dt * (2.0 - 1.0 * self.flash.a), 0.0);
 		if self.flash.a <= 0.0 {
 			// icon is no longer visible
