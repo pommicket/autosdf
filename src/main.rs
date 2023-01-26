@@ -598,7 +598,7 @@ impl State {
 			// there isnt anything to save . why did you set the scale so small...
 			return Ok(());
 		}
-		let time = Utc::now();
+		let time = Local::now();
 		let filename = time
 			.format("screenshots/autosdf-%Y-%m-%d-%H-%M-%S.png")
 			.to_string();
