@@ -5,7 +5,8 @@ procedurally generated signed distance functions
 ![a screenshot from AutoSDF](example3.png)
 
 **this is a very GPU-intensive application. if it's running slow, be sure to reduce `scale`, `sdf-length` and/or `color-length` in `settings.txt`.**
-you can also reduce `max-iterations` and increase `distance-threshold` if it's still slow.
+On the other hand, if you have a good GPU, be sure to increase `max-iterations` to something like 100-200. It will look much nicer.
+
 
 ## controls
 
