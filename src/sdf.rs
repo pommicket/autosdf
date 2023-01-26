@@ -35,7 +35,7 @@ impl GenRandomParams for SdfParams {
 }
 
 /// these are constant across 3D space, not across time/user input/etc.
-#[derive(Debug, GenRandom, Serialize, Deserialize)]
+#[derive(Debug, GenRandom, Serialize, Deserialize, Clone, Copy)]
 #[params(SdfParams)]
 pub enum Constant {
 	#[prob(0.0)]
@@ -167,26 +167,13 @@ impl Display for Constant3 {
 
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
-pub enum R3ToR3 {
-	#[prob(0)]
-	Identity,
-	#[prob(8)]
-	#[only_if(params.max_depth >= 0)]
-	Compose(Box<R3ToR3>, Box<R3ToR3>),
-	#[prob(4)]
-	#[only_if(params.max_depth >= 0)]
-	Mix(Box<R3ToR3>, Box<R3ToR3>, Constant),
-	#[prob(1)]
-	Translate(Constant3),
+pub enum RnToRn {
 	#[prob(4)]
 	#[bias(0.01)] // prevent division by 0
 	Sin(Constant), // 1/c sin(cx)
 	#[prob(4)]
 	#[bias(0.01)]
 	InfiniteMirrors(Constant),
-	#[prob(2)]
-	#[scale(2 * std::f32::consts::PI)]
-	Rotate(Constant3),
 	#[prob(2)]
 	Arctan(Constant), // arctan(c x)  / c
 	#[prob(2)]
@@ -198,15 +185,49 @@ pub enum R3ToR3 {
 	#[prob(2)]
 	Wibbly,
 	#[prob(2)]
-	Sqrt(Constant),
+	Sqrt(Constant),	
+}
+
+#[derive(GenRandom, Debug, Serialize, Deserialize)]
+#[params(SdfParams)]
+pub enum R3ToR3 {
+	#[prob(0)]
+	Identity,
+	#[prob(8)]
+	#[only_if(params.max_depth >= 0)]
+	Compose(Box<R3ToR3>, Box<R3ToR3>),
+	#[prob(4)]
+	#[only_if(params.max_depth >= 0)]
+	Mix(Box<R3ToR3>, Box<R3ToR3>, Constant),
+	#[prob(0.5)]
+	Translate(Constant3),
 	// this was removed at some point.
 	// it doesn't really seem to be helpful.
 	#[prob(0)]
 	Twisty(Constant),
+	#[prob(12)]
+	NToN(Box<RnToRn>),
+	#[prob(0.5)]
+	#[scale(2 * std::f32::consts::PI)]
+	Rotate(Constant3),
+	
+	// ---- everything below has been moved to RnToRn and is only here for backwards compatibility ----
+	#[prob(0)]
+	Sin(Constant), // 1/c sin(cx)
+	#[prob(0)]
+	InfiniteMirrors(Constant),
+	#[prob(0)]
+	Arctan(Constant),
+	#[prob(0)]
+	SqSin(Constant),
+	#[prob(0)]
+	Sigmoid,
+	#[prob(0)]
+	Wibbly,
+	#[prob(0)]
+	Sqrt(Constant),	
 }
 
-// note : i dont think R → R transformations really accomplish that much
-// that can't be done with R³ → R³.
 #[derive(GenRandom, Debug, Serialize, Deserialize)]
 #[params(SdfParams)]
 pub enum RToR {
@@ -434,6 +455,80 @@ trait Function: Sized + Default + GenRandom<SdfParams> + ImportExport {
 	}
 }
 
+impl RnToRn {
+	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter, n: u8) -> Variable {
+		let r#type = match n {
+			1 => "float",
+			2 => "vec2",
+			3 => "vec3",
+			4 => "vec4",
+			_ => panic!("bad n: {n}"),
+		};
+		use RnToRn::*;
+		match self {
+			Arctan(c) => {
+				let output = var.next();
+				// we need to scale arctan(cx) so it doesn't break the SDF
+				write_str!(code, "{type} {output} = (1.0 / {c}) * atan({c} * {input});\n");
+				output
+			}
+			SqSin(c) => {
+				let output = var.next();
+				let a = var.next();
+				write_str!(code, "{type} {a} = 0.1 + abs({input});\n");
+				write_str!(code, "{a} *= {a};\n");
+				write_str!(
+					code,
+					"{type} {output} = 0.7593/(pow({c},1.5)*{a}) * sin({c}*{a});\n"
+				);
+				output
+			}
+			Sigmoid => {
+				let output = var.next();
+				write_str!(
+					code,
+					"{type} {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n"
+				);
+				output
+			}
+			Wibbly => {
+				let output = var.next();
+				write_str!(
+					code,
+					"{type} {output} = sqrt({input}*({input}+3*sin({input}))) * 0.39;\n"
+				);
+				output
+			}
+			Sqrt(c) => {
+				let output = var.next();
+				write_str!(
+					code,
+					"{type} {output} = sqrt({c} * abs({input}) + {c}*{c}) * 2.0;\n"
+				);
+				output
+			}
+			Sin(c) => {
+				let output = var.next();
+				write_str!(code, "{type} {output} = sin({c} * {input}) * (1.0 / {c});\n");
+				output
+			}
+			InfiniteMirrors(c) => {
+				// similar to Sin(c), but uses mod instead
+				let q = var.next();
+				let r = var.next();
+				let output = var.next();
+				write_str!(code, "{type} {q} = mod(floor({input} * {c}), 2.0);\n");
+				write_str!(code, "{type} {r} = mod({input} * {c}, 1.0);\n");
+				write_str!(
+					code,
+					"{type} {output} = (1.0 / {c}) * ({q} + {r} * (1.0 - 2 * {q}));\n"
+				);
+				output
+			}
+		}
+	}
+}
+
 impl Function for RToR {
 	const INPUT_TYPE: GLSLType = GLSLType::Float;
 	const OUTPUT_TYPE: GLSLType = GLSLType::Float;
@@ -463,32 +558,11 @@ impl Function for R3ToR3 {
 	fn to_glsl(&self, input: Variable, code: &mut String, var: &mut VarCounter) -> Variable {
 		use R3ToR3::*;
 
-		match self {
+		match &self {
 			Identity => input,
 			Translate(by) => {
 				let output = var.next();
 				write_str!(code, "vec3 {output} = {input} + {by};\n");
-				output
-			}
-			Sin(c) => {
-				// we shouldn't just do sin(c x), since that
-				// would multiply the derivative by c (which breaks the SDF if c > 1)
-				// so we'll do sin(c x) / c instead.
-				let output = var.next();
-				write_str!(code, "vec3 {output} = sin({c} * {input}) * (1.0 / {c});\n");
-				output
-			}
-			InfiniteMirrors(c) => {
-				// similar to Sin(c), but uses mod instead
-				let q = var.next();
-				let r = var.next();
-				let output = var.next();
-				write_str!(code, "vec3 {q} = mod(floor({input} * {c}), 2.0);\n");
-				write_str!(code, "vec3 {r} = mod({input} * {c}, 1.0);\n");
-				write_str!(
-					code,
-					"vec3 {output} = (1.0 / {c}) * ({q} + {r} * (1.0 - 2 * {q}));\n"
-				);
 				output
 			}
 			Compose(a, b) => {
@@ -503,12 +577,6 @@ impl Function for R3ToR3 {
 					code,
 					"vec3 {output} = mix({a_output}, {b_output}, clamp({t}, 0.0, 1.0));\n"
 				);
-				output
-			}
-			Arctan(c) => {
-				let output = var.next();
-				// we need to scale arctan(cx) so it doesn't break the SDF
-				write_str!(code, "vec3 {output} = (1.0 / {c}) * atan({c} * {input});\n");
 				output
 			}
 			Rotate(by) => {
@@ -533,25 +601,6 @@ impl Function for R3ToR3 {
 				write_str!(code, "vec3 {output} = {m} * {input};\n");
 				output
 			}
-			SqSin(c) => {
-				let output = var.next();
-				let a = var.next();
-				write_str!(code, "vec3 {a} = 0.1 + abs({input});\n");
-				write_str!(code, "{a} *= {a};\n");
-				write_str!(
-					code,
-					"vec3 {output} = 0.7593/(pow({c},1.5)*{a}) * sin({c}*{a});\n"
-				);
-				output
-			}
-			Sigmoid => {
-				let output = var.next();
-				write_str!(
-					code,
-					"vec3 {output} = 2.0 - abs(4.0 / (1.0 + exp(-{input})) - 2.0);\n"
-				);
-				output
-			}
 			Twisty(c) => {
 				let s = var.next();
 				let a = var.next();
@@ -567,21 +616,29 @@ impl Function for R3ToR3 {
 				);
 				output
 			}
+			NToN(f) => {
+				f.to_glsl(input, code, var, 3)
+			}
+			Sin(c) => {
+				RnToRn::Sin(*c).to_glsl(input, code, var, 3)
+			}
+			InfiniteMirrors(c) => {
+				RnToRn::InfiniteMirrors(*c).to_glsl(input, code, var, 3)
+			}
+			SqSin(c) => {
+				RnToRn::SqSin(*c).to_glsl(input, code, var, 3)
+			}
+			Arctan(c) => {
+				RnToRn::Arctan(*c).to_glsl(input, code, var, 3)
+			}
+			Sigmoid => {
+				RnToRn::Sigmoid.to_glsl(input, code, var, 3)
+			}
 			Wibbly => {
-				let output = var.next();
-				write_str!(
-					code,
-					"vec3 {output} = sqrt({input}*({input}+3*sin({input}))) * 0.39;\n"
-				);
-				output
+				RnToRn::Wibbly.to_glsl(input, code, var, 3)
 			}
 			Sqrt(c) => {
-				let output = var.next();
-				write_str!(
-					code,
-					"vec3 {output} = sqrt({c} * abs({input}) + {c}*{c}) * 2.0;\n"
-				);
-				output
+				RnToRn::Sqrt(*c).to_glsl(input, code, var, 3)
 			}
 		}
 	}

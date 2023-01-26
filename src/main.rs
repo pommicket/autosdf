@@ -4,10 +4,7 @@
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
 - documentation
 - GenRandom integers (just use 0..u32::MAX and add a modulus)
-- blender-style rendering the picture in multiple frames
-   (this lets us look at super complicated SDFs while still processing input, etc. at 60 fps)
-- better SDL api: Context  +  Window<'a> impl !Send+!Sync
-- gallery view
+- is it the function generation or the shader compililng that's slow for large functions?
 - record a cool video
 */
 
