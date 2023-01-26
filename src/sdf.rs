@@ -221,9 +221,13 @@ pub enum R3ToR3 {
 	#[only_if(params.max_depth >= 0)]
 	Compose(Box<R3ToR3>, Box<R3ToR3>),
 	/// f(x, y, z) = (f₁(x), f₂(y), f₃(z))
-	#[prob(4)]
+	#[prob(3)]
 	#[only_if(params.max_depth >= 0)]
 	PerComponent(Box<RToR>, Box<RToR>, Box<RToR>),
+	/// f(x) = (f₁(x), f₂(x), f₃(x))
+	#[prob(3)]
+	#[only_if(params.max_depth >= 0)]
+	Multiplex(Box<R3ToR>, Box<R3ToR>, Box<R3ToR>),
 	/// a linear interpolation between two functions
 	#[prob(4)]
 	#[only_if(params.max_depth >= 0)]
@@ -663,6 +667,23 @@ impl Function for R3ToR3 {
 				let x_output = fx.to_glsl(x_input, code, var);
 				let y_output = fy.to_glsl(y_input, code, var);
 				let z_output = fz.to_glsl(z_input, code, var);
+				write_str!(
+					code,
+					"vec3 {output} = vec3({x_output}, {y_output}, {z_output});\n"
+				);
+				output
+			}
+			Multiplex(fx, fy, fz) => {
+				// we need to scale by 1/sqrt(3) to get a valid SDF
+				let a = var.next();
+				write_str!(
+					code,
+					"vec3 {a} = {input} * (1.0 / sqrt(3.0));\n"
+				);
+				let output = var.next();
+				let x_output = fx.to_glsl(a, code, var);
+				let y_output = fy.to_glsl(a, code, var);
+				let z_output = fz.to_glsl(a, code, var);
 				write_str!(
 					code,
 					"vec3 {output} = vec3({x_output}, {y_output}, {z_output});\n"

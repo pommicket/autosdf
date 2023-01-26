@@ -1,3 +1,4 @@
+
 \documentclass{article}
 \usepackage{amssymb}
 \usepackage{amsmath}
@@ -145,6 +146,19 @@ and $f_i:\bb R\to\bb R$ is $K$-Lipschitz for all $i$ then $f$ is $K$-Lipschitz.
 \end{proof}
 \end{theorem}
 
+\begin{theorem}
+\label{multiplex}
+If $f:\bb R^n\to\bb R^n$, $f(\vec x) = (f_1(\vec x) , f_2(\vec x), \dots, f_n(\vec x))$
+and $f_i:\bb R^n\to\bb R$ is $K$-Lipschitz for all $i$ then $f$ is $K\sqrt{n}$-Lipschitz.
+\begin{proof}
+\begin{align*}
+||f(\vec x) - f(\vec y)||^2 &= \sum_{i=1}^n (f_i(\vec x) - f_i(\vec y))^2\\
+&\leq \sum_{i=1}^n (K||\vec x-\vec y||)^2\\
+&= nK^2||\vec x-\vec y||^2
+\end{align*}
+\end{proof}
+\end{theorem}
+
 
 \begin{theorem}
 \label{dim-reduction}
@@ -263,7 +277,7 @@ Given $f,g:\bb R^n \to \bb R$ 1-Lipschitz and differentiable, define
 $$h(\vec x) = \sin (f(\vec x))\cos(g(\vec x))$$
 Clearly $h$ is also differentiable, we will show that it is 1-Lipschitz.
 $$\pp h{x_i} = \cos(f(\vec x))\cos(g(\vec x)) \pp{f(\vec x)}{x_i}- \sin(f(\vec x))\sin(g(\vec x))  \pp{g(\vec x)}{x_i}$$
-so letting $f(\vec x) = a,~g(\vec x)= b,~p = \cos a\cos b,~q = \sin a\sin b,~\pp{f(\vec x)}{x_i} = s_i,~\pp{g(\vec x)}{x_i} = t_i$, we have
+so letting $a=f(\vec x),~b=g(\vec x),~p = \cos a\cos b,~q = \sin a\sin b,~\pp{f(\vec x)}{x_i} = s_i,~\pp{g(\vec x)}{x_i} = t_i$, we have
 \begin{align*}
 ||Dh(\vec x)||^2 &= \sum_{i=1}^n \left[ps_i - qt_i\right]^2\\
 &=p^2\l(\sum_{i=1}^n  s_i^2\r) +  q^2\l(\sum_{i=1}^n  t_i^2\r)- 2pq\l(\sum_{i=1}^n s_it_i\r)\\
