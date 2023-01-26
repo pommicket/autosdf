@@ -1,9 +1,3 @@
-/*
-@TODO:
-- is it the function generation or the shader compililng that's slow for large functions?
-- record a cool video
-*/
-
 #![windows_subsystem = "windows"]
 extern crate chrono;
 extern crate nalgebra;
@@ -256,7 +250,7 @@ impl Settings {
 	/// returns true if the settings were changed.
 	pub fn reload_if_modified(&mut self) -> bool {
 		if self.get_modified_time() != self.file_last_modified {
-			self.reload().is_err()
+			!self.reload().is_err()
 		} else {
 			false
 		}
