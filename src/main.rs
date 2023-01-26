@@ -1,10 +1,9 @@
 /*
 @TODO:
-- flash error on bad string (see @TODO(error handling))
+- let user go back&forth through past sdfs using scenes.txt file
 - RnToRn functions (& add back in RToR)
  -  also add PerComponent(Box<RToR>,Box<RToR>,Box<RToR>) in R3ToR3
 - ProjectX, ProjectY, ProjectZ in R3ToR?
-- let user go back&forth through past sdfs using scenes.txt file
 - documentation
 - GenRandom integers (just use 0..u32::MAX and add a modulus)
 - blender-style rendering the picture in multiple frames
@@ -60,6 +59,18 @@ enum Icon {
 	Pause = 3,
 	Rewind = 4,
 	Screenshot = 5,
+	Error = 6,
+}
+
+impl Icon {
+	fn color(self) -> ColorF32 {
+		match self {
+			Icon::None => ColorF32::BLACK,
+			Icon::Copy | Icon::Screenshot => ColorF32::GREEN,
+			Icon::Error => ColorF32::RED,
+			Icon::Play | Icon::Pause | Icon::Rewind => ColorF32::rgb(1.0, 0.5, 0.0),
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -487,11 +498,7 @@ impl State {
 	}
 
 	fn flash(&mut self, icon: Icon) {
-		self.flash = match icon {
-			Icon::None => ColorF32::BLACK,
-			Icon::Copy | Icon::Screenshot => ColorF32::GREEN,
-			_ => ColorF32::rgb(1.0, 0.5, 0.0),
-		};
+		self.flash = icon.color();
 		self.flash_icon = icon;
 	}
 
@@ -692,8 +699,8 @@ impl State {
 					match self.window.set_clipboard_text(&self.scene.export_string()) {
 						Ok(()) => {}
 						Err(e) => {
-							// @TODO(error handling)
-							eprintln!("couldn't copy text to clipboard: {e}")
+							eprintln!("couldn't copy text to clipboard: {e}");
+							self.flash(Icon::Error);
 						}
 					}
 					self.flash(Icon::Copy);
@@ -712,13 +719,13 @@ impl State {
 								self.load_scene(new_scene);
 							}
 							None => {
-								// @TODO(error handling)
-								eprintln!("bad string")
+								eprintln!("bad string");
+								self.flash(Icon::Error);
 							}
 						},
 						Err(e) => {
-							// @TODO(error handling)
-							eprintln!("couldn't get clipboard text: {e}")
+							eprintln!("couldn't get clipboard text: {e}");
+							self.flash(Icon::Error);
 						}
 					}
 				}
@@ -728,8 +735,8 @@ impl State {
 					match self.take_screenshot() {
 						Ok(()) => {}
 						Err(e) => {
-							// @TODO(error handling)
 							eprintln!("screenshot fail: {e}");
+							self.flash(Icon::Error);
 						}
 					}
 				}

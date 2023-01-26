@@ -13,6 +13,7 @@ uniform int u_flash_icon;
 #define ICON_PAUSE 3
 #define ICON_REWIND 4
 #define ICON_SCREENSHOT 5
+#define ICON_ERROR 6
 
 bool play_icon(vec2 pos) {
 	vec2 a = abs(pos);
@@ -27,6 +28,7 @@ bool get_icon(vec2 pos) {
 	case 0: break;
 	case ICON_COPY:
 	case ICON_SCREENSHOT:
+	case ICON_ERROR:
 		icon = abs(pos.x) > u_aspect_ratio - 0.1 || abs(pos.y) > 0.9;
 		break;
 	case ICON_PLAY:
