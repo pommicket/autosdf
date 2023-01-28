@@ -31,12 +31,12 @@ vec3 hsv_to_rgb(vec3 hsv) {
 
 vec3 get_color(vec3 p) {
 	if (u_hsv != 0) {
-		vec3 hsv = clamp(get_color_(p), 0.0, 1.0);
+		vec3 hsv = 0.5 - cos(get_color_(p)) * 0.5;
 		// make sure object isn't too dark so we can actually see it
 		hsv.z = mix(hsv.z, 1.0, 0.5);
 		return hsv_to_rgb(hsv);
 	} else {
-		vec3 color = clamp(get_color_(p), 0.0, 1.0);
+		vec3 color = 0.5 - cos(get_color_(p)) * 0.5;
 		return mix(color, vec3(1.0), 0.2);
 	}
 }
